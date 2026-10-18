@@ -157,6 +157,19 @@ module.exports = async function verifyQueueHistory(page, source, original) {
     return navigation.left === logo.right + 16 && navigation.right < history.left &&
       navigation.top + navigation.height / 2 === logo.top + logo.height / 2;
   }), 'Back and Forward sit beside the top-left logo, separate from History');
+  for (const width of [1200, 600]) {
+    await page.setViewportSize({ width, height: 682 });
+    await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+    check(await page.locator('#swh-root .navigation').isVisible() &&
+      await page.locator('#swh-root .nav-button').evaluateAll(buttons => buttons.length === 2 && buttons.every(button => {
+        const icon = button.querySelector('svg');
+        const a = button.getBoundingClientRect(), b = icon.getBoundingClientRect();
+        return b.width === 16 && b.height === 16 && Math.abs(a.left + a.width / 2 - b.left - b.width / 2) < 0.1 &&
+          Math.abs(a.top + a.height / 2 - b.top - b.height / 2) < 0.1;
+      })), `Visible navigation uses centered 16px icons with equal padding at ${width}px`);
+  }
+  await page.setViewportSize({ width: 1200, height: 682 });
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
   await change(fixture('Second', 'Track2'));
   await page.getByRole('button', { name: 'History 1', exact: true }).click();
   const belowHeader = await page.evaluate(() => {
@@ -502,12 +515,7 @@ module.exports = async function verifyQueueHistory(page, source, original) {
   check(menuBounds.x >= 0 && menuBounds.x + menuBounds.width <= 420 && menuBounds.y + menuBounds.height <= 760,
     'Action menu remains inside the narrow viewport');
   await search.click();
-  check(await page.locator('#swh-root .nav-button').evaluateAll(buttons => buttons.every(button => {
-    const icon = button.querySelector('svg');
-    const a = button.getBoundingClientRect(), b = icon.getBoundingClientRect();
-    return b.width === 16 && b.height === 16 && Math.abs(a.left + a.width / 2 - b.left - b.width / 2) < 0.1 &&
-      Math.abs(a.top + a.height / 2 - b.top - b.height / 2) < 0.1;
-  })), 'Back and Forward use centered 16px icons with equal padding inside their circles');
+
   const beforeMove = await historyRoot.locator('.panel').boundingBox();
   const handle = await historyRoot.locator('.title').boundingBox();
   const grab = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 };
