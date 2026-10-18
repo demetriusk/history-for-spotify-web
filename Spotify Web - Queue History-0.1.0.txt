@@ -1,0 +1,440 @@
+
+ // ==UserScript==
+ // @name         Spotify Web - Queue History
+ // @namespace    local.spotify.queue-history
+ // @version      0.1.0
+ // @description  Adds a visible History button beside Spotify Web Player queue; remembers up to 50 tracks locally.
+ // @match        https://open.spotify.com/*
+ // @run-at       document-idle
+ // @grant        none
+ // @noframes
+ // ==/UserScript==
+
+ (() => {
+   'use strict';
+   if (window.__spotifyQueueHistoryInstalled) return;
+   window.__spotifyQueueHistoryInstalled = true;
+
+   const KEY = 'spotify-web-local-queue-history-v1';
+   const LIMIT = 50;
+   const ID = 'swh-root';
+   let history = loadHistory();
+   let current = null;
+   let opened = false;
+   let root, button, panel, list;
+
+   function loadHistory() {
+     try {
+       const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+       return Array.isArray(parsed) ? parsed.slice(0, LIMIT) : [];
+     } catch {
+       return [];
+     }
+   }
+
+   function persist() {
+     try {
+       localStorage.setItem(KEY, JSON.stringify(history));
+     } catch (error) {
+       console.warn('[Spotify Queue History] Could not save locally:', error);
+     }
+   }
+
+   function readCurrentTrack() {
+     const candidates = [
+       document.querySelector('[data-testid="now-playing-widget"]'),
+       document.querySelector('[data-testid="now-playing-bar"]'),
+       document.querySelector('footer [data-testid="context-item-info-title"]')?.parentElement?.parentElement
+     ].filter(Boolean);
+
+     for (const area of candidates) {
+       const link = area.querySelector('a[href*="/track/"]');
+       if (!link) continue;
+
+       const url = new URL(link.getAttribute('href'), location.href);
+       const match = url.pathname.match(/\/track\/([A-Za-z0-9]+)/);
+       if (!match) continue;
+
+       const titleArea = area.querySelector('[data-testid="context-item-info-title"]');
+       const name = (
+         link.textContent ||
+         link.getAttribute('title') ||
+         titleArea?.textContent ||
+         ''
+       ).trim();
+
+       if (!name) continue;
+
+       const artistLinks = [...area.querySelectorAll('a[href*="/artist/"]')];
+       const artist = artistLinks
+         .map(a => a.textContent.trim())
+         .filter(Boolean)
+         .join(', ') || '';
+
+       const art = area.querySelector('img[src]')?.src || '';
+
+       return {
+         id: match[1],
+         url: `https://open.spotify.com/track/${match[1]}`,
+         name,
+         artist,
+         art,
+         startedAt: Date.now()
+       };
+     }
+
+     return null;
+   }
+
+   function trackChange() {
+     const detected = readCurrentTrack();
+     if (!detected) return;
+
+     if (!current) {
+       current = detected;
+       return;
+     }
+
+     if (current.id === detected.id) return;
+
+     history.unshift({ ...current, endedAt: Date.now() });
+     history = history.slice(0, LIMIT);
+
+     persist();
+     current = detected;
+
+     if (opened) renderList();
+     updateButton();
+   }
+
+   function make(tag, className, text) {
+     const el = document.createElement(tag);
+     if (className) el.className = className;
+     if (text !== undefined) el.textContent = text;
+     return el;
+   }
+
+   function setup() {
+     root = document.createElement('div');
+     root.id = ID;
+
+     const shadow = root.attachShadow({ mode: 'open' });
+     const style = document.createElement('style');
+
+     style.textContent = `
+       * { box-sizing: border-box; }
+       button { font: inherit; cursor: pointer; }
+
+       .trigger {
+         appearance: none;
+         position: fixed;
+         right: 20px;
+         bottom: 94px;
+         z-index: 2147483000;
+         border: 0;
+         border-radius: 8px;
+         background: #272727;
+         color: #f6f6f6;
+         padding: 7px 11px;
+         height: 32px;
+         font: 600 12px system-ui, sans-serif;
+         white-space: nowrap;
+         box-shadow: 0 4px 20px #0008;
+       }
+
+       .trigger:hover,
+       .trigger:focus-visible {
+         background: #383838;
+         outline: 1px solid #777;
+       }
+
+       .trigger.active {
+         background: #1ed760;
+         color: #092b17;
+       }
+
+       .panel {
+         position: fixed;
+         right: 20px;
+         bottom: 138px;
+         z-index: 2147483001;
+         width: min(365px, calc(100vw - 40px));
+         max-height: min(65vh, 600px);
+         background: #181818;
+         border: 1px solid #454545;
+         border-radius: 13px;
+         box-shadow: 0 15px 65px #000b;
+         color: #fff;
+         display: flex;
+         flex-direction: column;
+         font: 13px system-ui, -apple-system, sans-serif;
+         overflow: hidden;
+       }
+
+       .panel[hidden] { display: none; }
+
+       .top {
+         display: flex;
+         align-items: center;
+         justify-content: space-between;
+         padding: 14px 15px;
+         gap: 8px;
+         border-bottom: 1px solid #303030;
+       }
+
+       .title {
+         font-size: 16px;
+         font-weight: 750;
+       }
+
+       .tools {
+         display: flex;
+         gap: 7px;
+         align-items: center;
+       }
+
+       .tools button {
+         background: transparent;
+         color: #bcbcbc;
+         border: 0;
+         padding: 5px 6px;
+         border-radius: 6px;
+         font-size: 12px;
+       }
+
+       .tools button:hover {
+         background: #333;
+         color: #fff;
+       }
+
+       .entries {
+         overflow-y: auto;
+         padding: 7px;
+       }
+
+       .entry {
+         display: flex;
+         align-items: center;
+         gap: 10px;
+         min-width: 0;
+         padding: 8px 7px;
+         color: #f7f7f7;
+         text-decoration: none;
+         border-radius: 8px;
+       }
+
+       .entry:hover,
+       .entry:focus-visible {
+         background: #2b2b2b;
+         outline: none;
+       }
+
+       .art {
+         height: 42px;
+         width: 42px;
+         object-fit: cover;
+         border-radius: 5px;
+         background: #282828;
+         flex: none;
+       }
+
+       .meta {
+         min-width: 0;
+         flex: 1;
+       }
+
+       .song {
+         font-size: 13px;
+         font-weight: 650;
+         white-space: nowrap;
+         overflow: hidden;
+         text-overflow: ellipsis;
+       }
+
+       .artist {
+         font-size: 11px;
+         color: #b3b3b3;
+         margin-top: 3px;
+         white-space: nowrap;
+         overflow: hidden;
+         text-overflow: ellipsis;
+       }
+
+       .time {
+         font-size: 10px;
+         color: #9d9d9d;
+         white-space: nowrap;
+       }
+
+       .empty {
+         color: #aeb0af;
+         line-height: 1.55;
+         padding: 18px 12px;
+         font-size: 12px;
+       }
+
+       .hint {
+         padding: 10px 15px;
+         border-top: 1px solid #303030;
+         color: #858585;
+         font-size: 11px;
+       }
+     `;
+
+     shadow.append(style);
+
+     button = make('button', 'trigger', 'History');
+     button.type = 'button';
+     button.title = 'Previously played Spotify Web tracks';
+     button.addEventListener('click', () => setOpen(!opened));
+
+     panel = make('section', 'panel');
+     panel.hidden = true;
+     panel.setAttribute('aria-label', 'Spotify queue history');
+
+     const top = make('div', 'top');
+     const title = make('div', 'title', 'Recently played');
+     const tools = make('div', 'tools');
+
+     const clear = make('button', null, 'Clear');
+     clear.type = 'button';
+     clear.title = 'Delete locally recorded queue history';
+
+     clear.addEventListener('click', () => {
+       if (!confirm('Clear Spotify Web queue history saved in this browser?')) return;
+       history = [];
+       persist();
+       renderList();
+       updateButton();
+     });
+
+     const close = make('button', null, '✕');
+     close.type = 'button';
+     close.title = 'Close history';
+     close.addEventListener('click', () => setOpen(false));
+
+     tools.append(clear, close);
+     top.append(title, tools);
+
+     list = make('div', 'entries');
+
+     const hint = make(
+       'div',
+       'hint',
+       'Local history. Starts recording when this script is installed.'
+     );
+
+     panel.append(top, list, hint);
+     shadow.append(button, panel);
+     document.body.append(root);
+
+     document.addEventListener('keydown', e => {
+       if (e.key === 'Escape' && opened) setOpen(false);
+     });
+
+     ensureButtonPlacement();
+     updateButton();
+     renderList();
+   }
+
+   function updateButton() {
+     if (button) {
+       button.textContent = `History${history.length ? ` (${history.length})` : ''}`;
+     }
+   }
+
+   function ensureButtonPlacement() {
+     const queue = document.querySelector(
+       '[data-testid="control-button-queue"]'
+     );
+
+     if (!queue) {
+       button.style.left = 'auto';
+       button.style.top = 'auto';
+       button.style.right = '20px';
+       button.style.bottom = '94px';
+       return;
+     }
+
+     const rect = queue.getBoundingClientRect();
+     const buttonWidth = button.offsetWidth || 90;
+
+     button.style.left = `${
+       Math.max(8, Math.min(innerWidth - buttonWidth - 8, rect.right - buttonWidth))
+     }px`;
+
+     button.style.top = `${Math.max(8, rect.top - 41)}px`;
+     button.style.right = 'auto';
+     button.style.bottom = 'auto';
+   }
+
+   function setOpen(value) {
+     opened = Boolean(value);
+     panel.hidden = !opened;
+     button.classList.toggle('active', opened);
+     button.setAttribute('aria-expanded', String(opened));
+
+     if (opened) renderList();
+   }
+
+   function renderList() {
+     list.replaceChildren();
+
+     if (!history.length) {
+       list.append(make(
+         'div',
+         'empty',
+         'No previous tracks yet. Keep Spotify Web open and play another song; completed/left-behind tracks will appear here.'
+       ));
+       return;
+     }
+
+     for (const entry of history) {
+       const link = make('a', 'entry');
+       link.href = entry.url;
+       link.title = 'Open track in Spotify';
+
+       if (entry.art) {
+         const img = make('img', 'art');
+         img.src = entry.art;
+         img.alt = '';
+         img.loading = 'lazy';
+         link.append(img);
+       }
+
+       const metadata = make('div', 'meta');
+
+       metadata.append(
+         make('div', 'song', entry.name)
+       );
+
+       metadata.append(
+         make('div', 'artist', entry.artist || 'Unknown artist')
+       );
+
+       const time = make(
+         'span',
+         'time',
+         new Date(entry.endedAt || entry.startedAt).toLocaleTimeString(
+           [],
+           { hour: '2-digit', minute: '2-digit' }
+         )
+       );
+
+       link.append(metadata, time);
+       list.append(link);
+     }
+   }
+
+   function tick() {
+     if (!document.body) return;
+
+     if (!root || !root.isConnected) setup();
+
+     ensureButtonPlacement();
+     trackChange();
+   }
+
+   tick();
+   setInterval(tick, 1700);
+ })();

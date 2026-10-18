@@ -1,0 +1,1088 @@
+// ==UserScript==
+// @name         Spotify Web - Queue History
+// @namespace    local.spotify.queue-history
+// @version      0.2.7
+// @description  Adds Back/Forward controls and local track history in place of Spotify's Install App button.
+// @match        https://open.spotify.com/*
+// @run-at       document-idle
+// @grant        none
+// @noframes
+// ==/UserScript==
+
+(() => {
+  'use strict';
+  if (window.__spotifyQueueHistoryInstalled) return;
+  window.__spotifyQueueHistoryInstalled = true;
+
+  const KEY = 'spotify-web-local-queue-history-v1';
+  const SETTINGS_KEY = `${KEY}-limit`;
+  let limit = Number(localStorage.getItem(SETTINGS_KEY)) || 50;
+  if (![50, 200, 500].includes(limit)) limit = 50;
+  const ID = 'swh-root';
+  let history = loadHistory();
+  let current = null;
+  let opened = false;
+  let panelPosition = null;
+  let root, button, panel, list, hint, backButton, forwardButton, navigation, queueLoading;
+  let installButton, installDisplay, search;
+  let draggedTrack = { signature: '', id: null };
+  let queueBusy = false;
+  let queueStatus = '';
+  let queueRequest = 0;
+
+  function loadHistory() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+      return Array.isArray(parsed) ? parsed.map(normalizeEntry).filter(Boolean).slice(0, limit) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function normalizeEntry(entry) {
+    if (!entry || typeof entry.id !== 'string' || typeof entry.name !== 'string' || !entry.name.trim() ||
+      typeof entry.artist !== 'string' || !Number.isFinite(entry.startedAt ?? entry.endedAt) ||
+      (entry.endedAt !== undefined && !Number.isFinite(entry.endedAt)) ||
+      !(/^[A-Za-z0-9]+$/.test(entry.id) || entry.id.startsWith('metadata:'))) return null;
+    const exact = /^[A-Za-z0-9]+$/.test(entry.id);
+    return {
+      id: entry.id, name: entry.name, artist: entry.artist,
+      url: exact ? `https://open.spotify.com/track/${entry.id}` :
+        `https://open.spotify.com/search/${encodeURIComponent(`${entry.name} ${entry.artist}`.trim())}`,
+      art: typeof entry.art === 'string' && /^(?:https:\/\/i\.scdn\.co\/|data:image\/(?:png|jpeg|gif|webp);base64,)/i.test(entry.art) ? entry.art : '',
+      startedAt: entry.startedAt ?? entry.endedAt, ...(entry.endedAt === undefined ? {} : { endedAt: entry.endedAt })
+    };
+  }
+
+  function showStatus(message) {
+    queueStatus = message;
+    hint.textContent = message;
+  }
+
+  function exportHistory() {
+    const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, tracks: history }, null, 2)], { type: 'application/json' }));
+    const link = make('a');
+    link.href = url;
+    link.download = `spotify-history-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function importHistory(file) {
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const tracks = Array.isArray(data) ? data : data?.tracks;
+      if (!Array.isArray(tracks)) throw new Error('Choose a Spotify history JSON export.');
+      const imported = tracks.map(normalizeEntry);
+      if (imported.some(entry => !entry)) throw new Error('Import failed: the file contains invalid track records.');
+      const unique = new Map();
+      for (const entry of [...history, ...imported]) {
+        unique.set(JSON.stringify([entry.id, entry.startedAt, entry.endedAt]), entry);
+      }
+      history = [...unique.values()].sort((a, b) => (b.endedAt || b.startedAt) - (a.endedAt || a.startedAt)).slice(0, limit);
+      persist();
+      renderList();
+      updateButton();
+      showStatus(`History imported. Keeping the latest ${limit} tracks; duplicates skipped.`);
+    } catch (error) {
+      showStatus(error instanceof SyntaxError ? 'Import failed: invalid JSON.' : error.message);
+    }
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(history));
+    } catch (error) {
+      console.warn('[Spotify Queue History] Could not save locally:', error);
+    }
+  }
+
+  function readDraggedTrackId(area, signature) {
+    if (draggedTrack.signature === signature && draggedTrack.id) return draggedTrack.id;
+    const draggable = area.querySelector('[data-testid="context-item-info-title"] [draggable="true"]');
+    if (!draggable) return null;
+    const data = new DataTransfer();
+    let id = null;
+    try {
+      draggable.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: data }));
+      const value = data.getData('text/x-spotify-tracks') || data.getData('text/uri-list') || data.getData('text/plain');
+      id = value.match(/(?:spotify:track:|open\.spotify\.com\/track\/)([A-Za-z0-9]{22})(?:$|[?\s])/)?.[1] || null;
+    } finally {
+      draggable.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: data }));
+    }
+    draggedTrack = { signature, id };
+    return id;
+  }
+
+  function readCurrentTrack() {
+    const candidates = [
+      document.querySelector('[data-testid="now-playing-widget"]'),
+      document.querySelector('[data-testid="now-playing-bar"]'),
+      document.querySelector('footer')
+    ].filter(Boolean);
+
+    for (const area of candidates) {
+      const titleArea = area.querySelector(
+        '[data-testid="context-item-info-title"], ' +
+        '[data-testid="context-item-link"], ' +
+        '[data-testid="nowplaying-track-link"]'
+      );
+      const link = (titleArea?.matches('a[href]') ? titleArea :
+        titleArea?.querySelector('a[href]')) || area.querySelector(
+        'a[href*="/track/"], a[href*="highlight=spotify"]'
+      );
+      const name = [titleArea?.textContent, link?.textContent, link?.getAttribute('title')]
+        .map(value => value?.trim())
+        .find(Boolean);
+      if (!name) continue;
+
+      const artistLinks = [...area.querySelectorAll('a[href*="/artist/"]')];
+      const artist = [...new Set(artistLinks.map(a => a.textContent.trim()).filter(Boolean))]
+        .join(', ') || area.querySelector('[data-testid="context-item-info-artist"]')
+        ?.textContent.trim() || '';
+      let trackId;
+      for (const node of [area, ...area.querySelectorAll('a[href], [data-uri], [data-track-uri]')]) {
+        const uri = node.getAttribute('data-track-uri') || node.getAttribute('data-uri');
+        const href = node.getAttribute('href');
+        const url = href ? new URL(href, location.href) : null;
+        const match = uri?.match(/^spotify:track:([A-Za-z0-9]+)$/) ||
+          url?.pathname.match(/\/track\/([A-Za-z0-9]+)(?:\/|$)/) ||
+          url?.searchParams.get('highlight')?.match(/^spotify:track:([A-Za-z0-9]+)$/);
+        if (match) {
+          trackId = match[1];
+          break;
+        }
+      }
+      const art = area.querySelector('img[src]')?.src || '';
+      if (!trackId) trackId = readDraggedTrackId(area, JSON.stringify([name, artist, art]));
+
+      // Album links may omit a track ID; the visible title still identifies changes.
+      return {
+        id: trackId || `metadata:${JSON.stringify([name, artist])}`,
+        url: trackId ? `https://open.spotify.com/track/${trackId}` :
+          `https://open.spotify.com/search/${encodeURIComponent(`${name} ${artist}`.trim())}`,
+        name,
+        artist,
+        art,
+        startedAt: Date.now()
+      };
+    }
+
+    return null;
+  }
+
+  function trackChange() {
+    const detected = readCurrentTrack();
+    hint.textContent = queueStatus || (detected
+      ? `Tracking: ${detected.name}.`
+      : 'Waiting for Spotify track details. Start a song in the Web Player.');
+    if (!detected) return;
+
+    if (!current) {
+      current = detected;
+      return;
+    }
+
+    if (current.id === detected.id || (
+      (current.id.startsWith('metadata:') || detected.id.startsWith('metadata:')) &&
+      current.name === detected.name && current.artist === detected.artist
+    )) {
+      current = { ...detected, startedAt: current.startedAt };
+      return;
+    }
+
+    history.unshift({ ...current, endedAt: Date.now() });
+    history = history.slice(0, limit);
+
+    persist();
+    current = detected;
+
+    if (opened) renderList();
+    updateButton();
+  }
+
+  function make(tag, className, text) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  function setup() {
+    root = document.createElement('div');
+    root.id = ID;
+
+    const shadow = root.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+
+    style.textContent = `
+      * { box-sizing: border-box; }
+      button { font: inherit; cursor: pointer; }
+
+      .navigation {
+        position: fixed;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        z-index: 2147483000;
+      }
+
+      .navigation[hidden] { display: none; }
+
+      .nav-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: var(--background-elevated-base, #1f1f1f);
+        color: var(--text-subdued, #b3b3b3);
+        font: 600 24px/1 var(--encore-body-font-stack, system-ui, sans-serif);
+      }
+
+      .nav-button svg { width: 16px; height: 16px; flex: none; }
+
+      .nav-button:hover { color: var(--text-base, #fff); }
+      .nav-button:focus-visible { outline: 2px solid var(--text-base, #fff); outline-offset: 2px; }
+
+      @media (max-width: 600px) {
+        .navigation { gap: 4px; }
+        .nav-button { width: 28px; height: 28px; font-size: 22px; }
+      }
+
+      .trigger {
+        appearance: none;
+        position: fixed;
+        right: 20px;
+        bottom: 94px;
+        z-index: 2147483000;
+        border: 0;
+        border-radius: 8px;
+        background: #272727;
+        color: #f6f6f6;
+        padding: 7px 11px;
+        height: 32px;
+        font: 600 12px var(--encore-body-font-stack, system-ui, sans-serif);
+        white-space: nowrap;
+        box-shadow: 0 4px 20px #0008;
+      }
+
+      .trigger:hover,
+      .trigger:focus-visible {
+        background: #383838;
+        outline: 1px solid #777;
+      }
+
+      .trigger.active {
+        background: #383838;
+        color: #f6f6f6;
+      }
+
+      .panel {
+        position: fixed;
+        right: 20px;
+        bottom: 138px;
+        z-index: 2147483001;
+        width: min(365px, calc(100vw - 40px));
+        max-height: min(65vh, 600px);
+        background: #181818;
+        border: 1px solid #454545;
+        border-radius: 13px;
+        box-shadow: 0 15px 65px #000b;
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        font: 13px var(--encore-body-font-stack, system-ui, sans-serif);
+        overflow: hidden;
+      }
+
+      .panel[hidden] { display: none; }
+
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 15px;
+        gap: 8px;
+        border-bottom: 1px solid #303030;
+      }
+
+      .top { cursor: grab; touch-action: none; user-select: none; }
+      .top.dragging { cursor: grabbing; }
+
+      .title {
+        font-size: 16px;
+        font-weight: 750;
+      }
+
+      .tools {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+      }
+
+      .tools button {
+        background: transparent;
+        color: #bcbcbc;
+        border: 0;
+        padding: 5px 6px;
+        border-radius: 6px;
+        font-size: 12px;
+      }
+
+      .tools button:hover {
+        background: #333;
+        color: #fff;
+      }
+
+      .filters { padding: 10px 14px; border-bottom: 1px solid #303030; }
+      .search {
+        width: 100%; padding: 8px 10px; border: 1px solid #454545; border-radius: 5px;
+        background: var(--background-elevated-base, #242424); color: var(--text-base, #fff); font: inherit;
+      }
+      .settings { padding: 10px 14px; border-bottom: 1px solid #303030; color: #b3b3b3; font-size: 12px; }
+      .settings[hidden] { display: none; }
+      .settings-toggle { display: flex; align-items: center; justify-content: center; }
+      .settings-toggle svg { width: 16px; height: 16px; }
+      .settings-toggle[aria-expanded="true"] { color: #fff; background: #333; }
+      .settings-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+      .settings-controls label { display: inline-flex; align-items: center; gap: 8px; }
+      .settings select { background: #242424; color: #fff; padding: 6px 8px; border: 1px solid #454545; border-radius: 4px; font: inherit; }
+      .day { margin: 8px 7px 4px; color: #b3b3b3; font-size: 11px; font-weight: 600; }
+      .more-action {
+        flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+        background: transparent; color: #b3b3b3; font: 20px var(--encore-body-font-stack, system-ui, sans-serif); opacity: 0;
+      }
+      .entry:hover .more-action, .entry:focus-within .more-action,
+      .more-action[aria-expanded="true"] { opacity: 1; }
+      .more-action:hover { background: #383838; color: #fff; }
+      .more-action:focus-visible { outline: 2px solid #fff; }
+      @media (hover: none) { .more-action { opacity: 1; } }
+      .row-actions {
+        position: fixed; inset: auto; margin: 0; padding: 4px; min-width: 150px;
+        border: 1px solid #454545; border-radius: 5px; background: #282828; color: #fff;
+        box-shadow: 0 8px 24px #0008; font: 13px var(--encore-body-font-stack, system-ui, sans-serif);
+      }
+      .row-actions:popover-open { display: flex; flex-direction: column; }
+      .row-actions .queue-action { padding: 10px 12px; text-align: left; color: #fff; }
+      .entries {
+        overflow-y: auto;
+        padding: 7px;
+      }
+
+      .entry {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        padding: 8px 7px;
+        color: #f7f7f7;
+        text-decoration: none;
+        border-radius: 8px;
+      }
+
+      .entry:hover,
+      .entry:focus-visible {
+        background: #2b2b2b;
+        outline: none;
+      }
+
+      .track-link {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        flex: 1;
+        color: inherit;
+        text-decoration: none;
+        border-radius: 4px;
+      }
+
+      .track-link:focus-visible { outline: 2px solid #fff; }
+
+      .queue-action {
+        flex: none;
+        padding: 6px 8px;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: #b3b3b3;
+        font-size: 12px;
+      }
+
+      .queue-action:hover { background: #383838; color: #fff; }
+      .queue-action:disabled { opacity: .5; cursor: wait; }
+      .queue-action:focus-visible { outline: 2px solid #fff; }
+
+      .queue-loading {
+        position: fixed;
+        z-index: 2147482999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        background: var(--background-base, #121212);
+        color: var(--text-subdued, #b3b3b3);
+        font: 14px var(--encore-body-font-stack, system-ui, sans-serif);
+      }
+
+      .queue-loading[hidden] { display: none; }
+      .queue-loading progress { width: 120px; height: 4px; accent-color: #1ed760; }
+
+      .art {
+        height: 42px;
+        width: 42px;
+        object-fit: cover;
+        border-radius: 5px;
+        background: #282828;
+        flex: none;
+      }
+
+      .meta {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .song {
+        font-size: 13px;
+        font-weight: 650;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .artist {
+        font-size: 11px;
+        color: #b3b3b3;
+        margin-top: 3px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .time {
+        font-size: 10px;
+        color: #9d9d9d;
+        white-space: nowrap;
+      }
+
+      .empty {
+        color: #aeb0af;
+        line-height: 1.55;
+        padding: 18px 12px;
+        font-size: 12px;
+      }
+
+      .hint {
+        padding: 10px 15px;
+        border-top: 1px solid #303030;
+        color: #858585;
+        font-size: 11px;
+      }
+    `;
+
+    shadow.append(style);
+
+    button = make('button', 'trigger', 'History');
+    button.type = 'button';
+    button.title = 'Previously played Spotify Web tracks';
+    button.setAttribute('aria-expanded', 'false');
+    button.addEventListener('click', () => setOpen(!opened));
+
+    backButton = make('button', 'nav-button');
+    backButton.type = 'button';
+    backButton.title = 'Back';
+    backButton.setAttribute('aria-label', 'Back');
+    backButton.addEventListener('click', () => {
+      setOpen(false);
+      window.history.back();
+    });
+
+    forwardButton = make('button', 'nav-button');
+    forwardButton.type = 'button';
+    forwardButton.title = 'Forward';
+    forwardButton.setAttribute('aria-label', 'Forward');
+    forwardButton.addEventListener('click', () => {
+      setOpen(false);
+      window.history.forward();
+    });
+    for (const [control, path] of [[backButton, 'M15.5 5l-7 7 7 7'], [forwardButton, 'M8.5 5l7 7-7 7']]) {
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      icon.setAttribute('viewBox', '0 0 24 24');
+      icon.setAttribute('aria-hidden', 'true');
+      icon.setAttribute('fill', 'none');
+      icon.setAttribute('stroke', 'currentColor');
+      icon.setAttribute('stroke-width', '2');
+      icon.setAttribute('stroke-linecap', 'round');
+      icon.setAttribute('stroke-linejoin', 'round');
+      const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      shape.setAttribute('d', path);
+      icon.append(shape);
+      control.append(icon);
+    }
+    navigation = make('div', 'navigation');
+    navigation.setAttribute('role', 'group');
+    navigation.setAttribute('aria-label', 'Page navigation');
+    navigation.append(backButton, forwardButton);
+
+    panel = make('section', 'panel');
+    panel.hidden = true;
+    panel.setAttribute('aria-label', 'Spotify queue history');
+
+    const top = make('div', 'top');
+    top.title = 'Drag to move history';
+    let drag = null;
+    top.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || !event.isPrimary || event.target.closest('button')) return;
+      const rect = panel.getBoundingClientRect();
+      drag = { id: event.pointerId, x: event.clientX - rect.left, y: event.clientY - rect.top };
+      closeRowMenu();
+      top.setPointerCapture(event.pointerId);
+      top.classList.add('dragging');
+      event.preventDefault();
+    });
+    top.addEventListener('pointermove', event => {
+      if (!drag || drag.id !== event.pointerId) return;
+      panelPosition = { left: event.clientX - drag.x, top: event.clientY - drag.y };
+      positionDraggedPanel();
+    });
+    const endDrag = () => { drag = null; top.classList.remove('dragging'); };
+    top.addEventListener('pointerup', endDrag);
+    top.addEventListener('pointercancel', endDrag);
+    top.addEventListener('lostpointercapture', endDrag);
+    const title = make('div', 'title', 'Recently played');
+    const tools = make('div', 'tools');
+
+    const clear = make('button', null, 'Clear');
+    clear.type = 'button';
+    clear.title = 'Delete locally recorded queue history';
+
+    clear.addEventListener('click', () => {
+      if (!confirm('Clear Spotify Web queue history saved in this browser?')) return;
+      history = [];
+      persist();
+      renderList();
+      updateButton();
+    });
+
+    const close = make('button', null, '✕');
+    close.type = 'button';
+    close.title = 'Close history';
+    close.addEventListener('click', () => setOpen(false));
+
+    tools.append(clear, close);
+    top.append(title, tools);
+
+    list = make('div', 'entries');
+    list.addEventListener('scroll', closeRowMenu);
+
+    hint = make(
+      'div',
+      'hint',
+      'Waiting for Spotify track details.'
+    );
+    hint.setAttribute('role', 'status');
+
+    const filters = make('div', 'filters');
+    search = make('input', 'search');
+    search.type = 'search';
+    search.placeholder = 'Search history';
+    search.setAttribute('aria-label', 'Search history');
+    search.addEventListener('input', renderList);
+    const settings = make('div', 'settings');
+    settings.hidden = true;
+    settings.id = 'history-options';
+    const settingsToggle = make('button', 'settings-toggle');
+    settingsToggle.type = 'button';
+    settingsToggle.title = 'History options';
+    settingsToggle.setAttribute('aria-label', 'History options');
+    settingsToggle.setAttribute('aria-expanded', 'false');
+    settingsToggle.setAttribute('aria-controls', settings.id);
+    const cog = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    cog.setAttribute('viewBox', '0 0 24 24');
+    cog.setAttribute('aria-hidden', 'true');
+    cog.setAttribute('fill', 'none');
+    cog.setAttribute('stroke', 'currentColor');
+    cog.setAttribute('stroke-width', '1.5');
+    cog.setAttribute('stroke-linejoin', 'round');
+    const teeth = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    teeth.setAttribute('points', Array.from({ length: 32 }, (_, index) => {
+      const angle = (index - .5) * Math.PI / 16;
+      const radius = index % 4 < 2 ? 10 : 8;
+      return `${12 + radius * Math.cos(angle)},${12 + radius * Math.sin(angle)}`;
+    }).join(' '));
+    const center = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    center.setAttribute('cx', '12');
+    center.setAttribute('cy', '12');
+    center.setAttribute('r', '3');
+    cog.append(teeth, center);
+    settingsToggle.append(cog);
+    tools.insertBefore(settingsToggle, clear);
+    settingsToggle.addEventListener('click', () => {
+      settings.hidden = !settings.hidden;
+      settingsToggle.setAttribute('aria-expanded', String(!settings.hidden));
+    });
+    const controls = make('div', 'settings-controls');
+    const label = make('label', null, 'Keep');
+    const capacity = make('select');
+    capacity.setAttribute('aria-label', 'History limit');
+    for (const value of [50, 200, 500]) {
+      const option = make('option', null, `${value} tracks`);
+      option.value = value;
+      capacity.append(option);
+    }
+    capacity.value = limit;
+    capacity.addEventListener('change', () => {
+      const next = Number(capacity.value);
+      if (history.length > next && !confirm(`Keep only the latest ${next} tracks? Older entries will be deleted. Export first to keep a backup.`)) {
+        capacity.value = limit;
+        return;
+      }
+      limit = next;
+      localStorage.setItem(SETTINGS_KEY, String(limit));
+      history = history.slice(0, limit);
+      persist();
+      renderList();
+      updateButton();
+    });
+    label.append(capacity);
+    const exportButton = make('button', 'queue-action', 'Export');
+    exportButton.type = 'button';
+    exportButton.addEventListener('click', exportHistory);
+    const file = make('input');
+    file.type = 'file';
+    file.accept = '.json,application/json';
+    file.hidden = true;
+    file.addEventListener('change', async () => {
+      await importHistory(file.files[0]);
+      file.value = '';
+    });
+    const importButton = make('button', 'queue-action', 'Import');
+    importButton.type = 'button';
+    importButton.addEventListener('click', () => file.click());
+    controls.append(label, exportButton, importButton, file);
+    settings.append(controls);
+    filters.append(search);
+    panel.append(top, settings, filters, list, hint);
+    queueLoading = make('div', 'queue-loading');
+    queueLoading.hidden = true;
+    queueLoading.setAttribute('role', 'status');
+    const progress = make('progress');
+    progress.setAttribute('aria-label', 'Adding to queue');
+    queueLoading.append(make('span', null, 'Adding to queue…'), progress);
+    shadow.append(navigation, button, panel, queueLoading);
+    document.body.append(root);
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && opened) setOpen(false);
+    });
+    window.addEventListener('resize', ensureButtonPlacement);
+
+    ensureButtonPlacement();
+    updateButton();
+    renderList();
+  }
+
+  function updateButton() {
+    if (button) {
+      button.replaceChildren(document.createTextNode('History'));
+      button.setAttribute('aria-label', `History${history.length ? ` ${history.length}` : ''}`);
+      if (history.length) {
+        const count = make('span', null, String(history.length));
+        count.style.color = 'var(--text-bright-accent, #1ed760)';
+        count.style.marginInlineStart = '6px';
+        button.append(document.createTextNode(' '), count);
+      }
+    }
+  }
+
+  function positionDraggedPanel() {
+    if (!panelPosition) return;
+    const height = Math.min(panel.offsetHeight, innerHeight - 16);
+    panelPosition = {
+      left: Math.max(8, Math.min(innerWidth - panel.offsetWidth - 8, panelPosition.left)),
+      top: Math.max(8, Math.min(innerHeight - height - 8, panelPosition.top))
+    };
+    Object.assign(panel.style, {
+      left: `${panelPosition.left}px`, top: `${panelPosition.top}px`, right: 'auto', bottom: 'auto',
+      maxHeight: `${Math.max(0, Math.min(600, innerHeight - panelPosition.top - 8))}px`
+    });
+  }
+
+  function ensureButtonPlacement() {
+    placeControls();
+    positionDraggedPanel();
+  }
+
+  function placeControls() {
+    if (queueBusy) positionQueueLoading();
+    const logo = [...document.querySelectorAll(
+      'a[href="/"], a[href="https://open.spotify.com/"], [aria-label="Spotify"]'
+    )].find(element => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.left < 80 && rect.top >= 0 && rect.top < 80;
+    });
+    navigation.hidden = !logo;
+    if (logo) {
+      const rect = logo.getBoundingClientRect();
+      navigation.style.left = `${rect.right + 16}px`;
+      navigation.style.top = `${rect.top + (rect.height - navigation.offsetHeight) / 2}px`;
+    }
+
+    const install = document.querySelector('a[href="/download"]');
+    if (install) {
+      if (installButton !== install) {
+        if (installButton) installButton.style.display = installDisplay;
+        installButton = install;
+        installDisplay = install.style.display;
+      }
+      button.className = install.className.split(/\s+/)
+        .filter(name => !name.endsWith('--leading')).join(' ');
+      button.setAttribute('data-encore-id', 'buttonTertiary');
+      button.style.cssText = '';
+      if (button.nextElementSibling !== install) install.before(button);
+      install.style.display = 'none';
+
+      const rect = button.getBoundingClientRect();
+      panel.style.top = `${rect.bottom + 8}px`;
+      panel.style.bottom = 'auto';
+      panel.style.right = `${Math.max(8, Math.min(innerWidth - panel.offsetWidth - 8, innerWidth - rect.right))}px`;
+      panel.style.maxHeight = `${Math.max(0, Math.min(600, innerHeight - rect.bottom - 16))}px`;
+      return;
+    }
+
+    if (installButton) {
+      installButton.style.display = installDisplay;
+      installButton = null;
+      root.shadowRoot.insertBefore(button, panel);
+      button.className = `trigger${opened ? ' active' : ''}`;
+      button.removeAttribute('data-encore-id');
+      button.style.cssText = '';
+      panel.style.cssText = '';
+    }
+
+    const queue = document.querySelector(
+      '[data-testid="control-button-queue"]'
+    );
+
+    if (!queue) {
+      button.style.left = 'auto';
+      button.style.top = 'auto';
+      button.style.right = '20px';
+      button.style.bottom = '94px';
+      return;
+    }
+
+    const rect = queue.getBoundingClientRect();
+    const buttonWidth = button.offsetWidth || 90;
+
+    button.style.left = `${
+      Math.max(8, Math.min(innerWidth - buttonWidth - 8, rect.right - buttonWidth))
+    }px`;
+
+    button.style.top = `${Math.max(8, rect.top - 41)}px`;
+    button.style.right = 'auto';
+    button.style.bottom = 'auto';
+  }
+
+  function setOpen(value) {
+    closeRowMenu();
+    if (!value) queueRequest += 1;
+    opened = Boolean(value);
+    panel.hidden = !opened;
+    button.classList.toggle('active', opened);
+    button.setAttribute('aria-expanded', String(opened));
+
+    if (opened) {
+      renderList();
+      trackChange();
+    }
+    ensureButtonPlacement();
+  }
+
+  function openTrack(event, href) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const url = new URL(href, location.href);
+    if (url.origin !== location.origin) return;
+
+    event.preventDefault();
+    navigateTo(url);
+    setOpen(false);
+  }
+
+  function navigateTo(url) {
+    const destination = url.pathname + url.search + url.hash;
+    if (destination !== location.pathname + location.search + location.hash) {
+      const state = { ...window.history.state, key: Math.random().toString(36).slice(2, 10) };
+      if (Number.isInteger(state.idx)) state.idx += 1;
+      window.history.pushState(state, '', destination);
+      window.dispatchEvent(new PopStateEvent('popstate', { state }));
+    }
+  }
+
+  function findSearchMenu(id) {
+    for (const link of document.querySelectorAll('main [data-testid="infinite-scroll-list"] a[href*="/track/"]')) {
+      if (new URL(link.href).pathname !== `/track/${id}`) continue;
+      const row = link.closest('[data-testid="tracklist-row"], [role="row"]');
+      const more = row?.querySelector('button[data-testid="more-button"]');
+      if (more && !more.disabled && more.getClientRects().length) return more;
+    }
+    return null;
+  }
+
+  function positionQueueLoading() {
+    const rect = document.querySelector('main')?.getBoundingClientRect();
+    if (!rect) return;
+    Object.assign(queueLoading.style, {
+      left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`
+    });
+  }
+
+  async function queueTrack(entry) {
+    if (queueBusy) return;
+    const request = ++queueRequest;
+    queueBusy = true;
+    queueStatus = `Finding ${entry.name} in Spotify…`;
+    hint.textContent = queueStatus;
+    renderList();
+    positionQueueLoading();
+    queueLoading.hidden = false;
+    const previous = location.href;
+    const url = new URL(`https://open.spotify.com/search/${encodeURIComponent(`${entry.name} ${entry.artist}`.trim())}/tracks`);
+    navigateTo(url);
+    const destination = location.href;
+    const searchKey = window.history.state?.key;
+
+    async function waitFor(read, message) {
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        if (request !== queueRequest || location.href !== destination) throw new Error('Queue action canceled.');
+        const result = read();
+        if (result) return result;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      throw new Error(message);
+    }
+
+    try {
+      const more = await waitFor(() => findSearchMenu(entry.id),
+        'The exact track was not found. Choose it in Spotify search to queue it.');
+      await new Promise(resolve => setTimeout(resolve, 0));
+      if (request !== queueRequest || location.href !== destination) throw new Error('Queue action canceled.');
+      more.click();
+      const action = await waitFor(() => {
+        for (const menu of document.querySelectorAll('[role="menu"]')) {
+          const matchingTrack = [...menu.querySelectorAll('a[href]')].some(link =>
+            new URL(link.href).searchParams.get('highlight') === `spotify:track:${entry.id}`);
+          if (!matchingTrack) continue;
+          const item = [...menu.querySelectorAll('button[role="menuitem"]')].find(button =>
+            button.textContent.trim().toLowerCase() === 'add to queue');
+          if (item && !item.disabled && item.getAttribute('aria-disabled') !== 'true') return item;
+          throw new Error('Add to queue is unavailable in this Spotify session. Check its native menu.');
+        }
+        return null;
+      }, 'Add to queue is unavailable in this Spotify session. Check its native menu.');
+      action.click();
+      queueStatus = `Queue request sent for ${entry.name}. Check Spotify’s queue.`;
+      if (previous !== destination && request === queueRequest && location.href === destination && window.history.state?.key === searchKey) {
+        await new Promise(resolve => {
+          const done = () => {
+            clearTimeout(timer);
+            window.removeEventListener('popstate', done);
+            resolve();
+          };
+          const timer = setTimeout(done, 1000);
+          window.addEventListener('popstate', done, { once: true });
+          window.history.back();
+        });
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      }
+    } catch (error) {
+      queueStatus = error.message;
+    } finally {
+      queueBusy = false;
+      queueLoading.hidden = true;
+      hint.textContent = queueStatus;
+      if (opened) renderList();
+    }
+  }
+
+  function closeRowMenu() {
+    root?.shadowRoot.querySelector('.row-actions:popover-open')?.hidePopover();
+  }
+
+  function renderList() {
+    closeRowMenu();
+    list.replaceChildren();
+
+    if (!history.length) {
+      list.append(make(
+        'div',
+        'empty',
+        'No previous tracks yet. Keep Spotify Web open and play another song; completed/left-behind tracks will appear here.'
+      ));
+      return;
+    }
+
+    const query = search.value.trim().toLocaleLowerCase();
+    const entries = history.filter(entry => `${entry.name} ${entry.artist}`.toLocaleLowerCase().includes(query));
+    if (!entries.length) {
+      list.append(make('div', 'empty', 'No matching tracks.'));
+      return;
+    }
+    const today = new Date().toDateString();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    let day;
+    for (const entry of entries) {
+      const date = new Date(entry.endedAt || entry.startedAt);
+      const key = date.toDateString();
+      if (day !== key) {
+        const heading = make('h3', 'day', key === today ? 'Today' : key === yesterday.toDateString() ? 'Yesterday' :
+          date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }));
+        list.append(heading);
+        day = key;
+      }
+      const exact = /^[A-Za-z0-9]+$/.test(entry.id);
+      const row = make('div', 'entry');
+      const link = make('a', 'track-link');
+      link.href = `https://open.spotify.com/search/${encodeURIComponent(`${entry.name} ${entry.artist}`.trim())}`;
+      link.title = 'Find in Spotify';
+      link.draggable = exact;
+      link.addEventListener('click', event => openTrack(event, link.href));
+      if (exact) {
+        link.addEventListener('dragstart', event => {
+          const data = event.dataTransfer;
+          data.setData('text/x-spotify-context', '');
+          data.setData('text/uri-list', entry.url);
+          data.setData('text/plain', entry.url);
+          data.setData('text/x-spotify-section', '0');
+          data.setData('text/x-spotify-tracks', `spotify:track:${entry.id}`);
+        });
+      }
+
+      if (entry.art) {
+        const img = make('img', 'art');
+        img.src = entry.art;
+        img.alt = '';
+        img.loading = 'lazy';
+        img.draggable = false;
+        link.append(img);
+      }
+
+      const metadata = make('div', 'meta');
+
+      metadata.append(
+        make('div', 'song', entry.name)
+      );
+
+      metadata.append(
+        make('div', 'artist', entry.artist || 'Unknown artist')
+      );
+
+      const time = make(
+        'span',
+        'time',
+        new Date(entry.endedAt || entry.startedAt).toLocaleTimeString(
+          [],
+          { hour: '2-digit', minute: '2-digit' }
+        )
+      );
+
+      link.append(metadata, time);
+      row.append(link);
+      const more = make('button', 'more-action', '⋯');
+      more.type = 'button';
+      more.setAttribute('aria-label', `More options for ${entry.name}`);
+      more.setAttribute('aria-haspopup', 'menu');
+      more.setAttribute('aria-expanded', 'false');
+      const actions = make('div', 'row-actions');
+      actions.popover = 'auto';
+      actions.setAttribute('role', 'menu');
+      actions.setAttribute('aria-label', `Actions for ${entry.name}`);
+      more.popoverTargetElement = actions;
+      actions.addEventListener('toggle', event => {
+        const active = event.newState === 'open';
+        more.setAttribute('aria-expanded', String(active));
+        if (!active) return;
+        const rect = more.getBoundingClientRect();
+        actions.style.left = `${Math.max(8, Math.min(rect.right - actions.offsetWidth, innerWidth - actions.offsetWidth - 8))}px`;
+        actions.style.top = `${Math.max(8, rect.bottom + actions.offsetHeight + 4 <= innerHeight ? rect.bottom + 4 : rect.top - actions.offsetHeight - 4)}px`;
+        actions.querySelector('button:not(:disabled)')?.focus({ preventScroll: true });
+      });
+      actions.addEventListener('click', () => {
+        actions.hidePopover();
+        more.focus({ preventScroll: true });
+      }, { capture: true });
+      actions.addEventListener('keydown', event => {
+        const items = [...actions.querySelectorAll('button:not(:disabled)')];
+        const index = items.indexOf(actions.getRootNode().activeElement);
+        let next;
+        if (event.key === 'ArrowDown') next = (index + 1) % items.length;
+        if (event.key === 'ArrowUp') next = (index - 1 + items.length) % items.length;
+        if (event.key === 'Home') next = 0;
+        if (event.key === 'End') next = items.length - 1;
+        if (next !== undefined) { event.preventDefault(); items[next]?.focus(); }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          actions.hidePopover();
+          more.focus({ preventScroll: true });
+        }
+        if (event.key === 'Tab') actions.hidePopover();
+      });
+      if (exact) {
+        const queue = make('button', 'queue-action', queueBusy ? 'Wait…' : 'Queue');
+        queue.type = 'button';
+        queue.setAttribute('role', 'menuitem');
+        queue.setAttribute('aria-label', `Add ${entry.name} to queue`);
+        queue.title = 'Add to queue using Spotify search and its native menu';
+        queue.disabled = queueBusy;
+        queue.addEventListener('click', () => queueTrack(entry));
+        const copy = make('button', 'queue-action', 'Copy link');
+        copy.type = 'button';
+        copy.setAttribute('role', 'menuitem');
+        copy.setAttribute('aria-label', `Copy link to ${entry.name}`);
+        copy.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(entry.url);
+            showStatus(`Link copied for ${entry.name}.`);
+          } catch {
+            showStatus('Could not copy. Allow clipboard access in your browser.');
+          }
+        });
+        actions.append(queue, copy);
+      }
+      const remove = make('button', 'queue-action', 'Remove');
+      remove.type = 'button';
+      remove.setAttribute('role', 'menuitem');
+      remove.setAttribute('aria-label', `Remove ${entry.name} from history`);
+      remove.addEventListener('click', () => {
+        history.splice(history.indexOf(entry), 1);
+        persist();
+        renderList();
+        updateButton();
+      });
+      actions.append(remove);
+      row.append(more, actions);
+      list.append(row);
+    }
+  }
+
+  function tick() {
+    if (!document.body) return;
+
+    if (!root || !root.isConnected) setup();
+
+    ensureButtonPlacement();
+    trackChange();
+  }
+
+  tick();
+  setInterval(tick, 1700);
+})();

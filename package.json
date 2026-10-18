@@ -1,0 +1,14 @@
+{
+  "name": "history-for-spotify-web",
+  "version": "0.3.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "python3 scripts/build.py",
+    "check": "python3 scripts/check.py && node --check extension/history.js",
+    "test": "node tests/run.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  }
+}
