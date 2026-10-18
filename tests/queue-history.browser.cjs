@@ -180,7 +180,14 @@ module.exports = async function verifyQueueHistory(page, source, original) {
     const history = [...document.querySelectorAll('header button')].find(button => button.textContent.startsWith('History')).getBoundingClientRect();
     return nav.right <= history.left;
   }), 'Navigation and History do not overlap in a narrow PWA window');
+  await page.setViewportSize({ width: 360, height: 700 });
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  check(await page.locator('#swh-root .navigation').isHidden(),
+    'Navigation hides when the header has insufficient space');
   await page.setViewportSize({ width: 1200, height: 682 });
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+  check(await page.locator('#swh-root .navigation').isVisible(),
+    'Navigation returns when the header has space again');
 
   await page.evaluate(() => {
     document.querySelector('header').innerHTML = '<a class="spotify-logo" href="/" aria-label="Spotify">S</a><a class="e-10860-legacy-button" href="/download">Install App</a>';

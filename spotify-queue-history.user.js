@@ -728,6 +728,12 @@
 
   function ensureButtonPlacement() {
     placeControls();
+    if (!navigation.hidden) {
+      const nav = navigation.getBoundingClientRect();
+      const trigger = button.getBoundingClientRect();
+      navigation.hidden = nav.right + 8 > trigger.left && nav.left < trigger.right &&
+        nav.top < trigger.bottom && nav.bottom > trigger.top;
+    }
     positionDraggedPanel();
   }
 
