@@ -10,25 +10,26 @@ Find tracks you played in Spotify's web player. Search local history, copy links
 
 ## Detailed description
 
-Find the song that played three tracks ago.
+Good song. Gone already. What was it?
 
-History for Spotify Web adds a searchable listening history to the web player. Open History in Spotify's top bar to find an earlier track without retracing your session.
+History for Spotify Web keeps a searchable list of the tracks you leave behind. Open it in Spotify's top bar or from your browser toolbar. Both views share the same history.
 
-Search by title or artist. Keep 50, 200, or 500 entries, grouped by day. A track's menu lets you copy its link, remove that play from history, or send the exact song to Spotify's native Add to queue control. Back and Forward buttons bring page navigation into the web player. Drag the history panel by its header to put it where you want it. Export and import JSON backups when you want to move your history between browsers.
+• Find a song by title or artist.
+• Open its menu to queue it again, copy its link, or remove the entry.
+• Keep 50, 200, or 500 tracks. Export and import JSON backups.
+• Use Back and Forward to browse your library. Drag the in-page panel wherever it fits.
 
-Prefer Spotify in your browser? Keep it there. Use a tab or an app-style window without installing another music client. You stay in Spotify's own interface and sign in with Spotify directly. This extension adds local listening history; it doesn't replace the player or require a separate developer account.
+Desktop app hogging RAM? Cache getting chunky? Keep discovery, search, your library, and playlist management in your browser, without running a separate music client. This extension fills two gaps: visible page-navigation buttons and a searchable track-by-track history.
 
-History is stored in this browser's Spotify site storage. The extension has no server, analytics, or account of its own. It doesn't upload your listening history. Clearing Spotify's site data also clears the saved history. You can remove individual entries or clear the list from the panel.
+Your history stays in Spotify's site storage in this browser. No extension account, server, analytics, or uploads. Clear it from either view, or clear Spotify's site data. Keep a Spotify tab open to use the toolbar popup.
 
-A few limits: recording starts after installation and only captures track changes observed in the open web player. It can't recover your earlier Spotify history. Skipped tracks can appear. Queue depends on Spotify's own controls and currently requires its English interface. Added songs go to Next in queue. Cross-section dragging into Next up is controlled by Spotify and can remove a queued song in some sessions.
+Recording starts after installation and captures track changes while the web player is open, including skips. It can't recover earlier listening sessions. Queue uses Spotify's own controls, currently needs its English interface, and adds songs to Next in queue. Spotify controls availability; no Premium-only API calls are added.
 
-The extension adds no Premium-only API calls. Available playback and queue controls still depend on Spotify, your account, and your active device.
-
-Free and open source under the MIT license.
+Free and open source. MIT license.
 Source and support: https://github.com/demetriusk/history-for-spotify-web
 Privacy: https://github.com/demetriusk/history-for-spotify-web/blob/main/PRIVACY.md
 
-Independent and unofficial. Not affiliated with, endorsed by, or produced by Spotify.
+Independent and unofficial. Not affiliated with or endorsed by Spotify.
 
 ## Listing fields
 

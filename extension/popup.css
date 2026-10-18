@@ -1,0 +1,14 @@
+body { width: 400px; margin: 0; background: #181818; color: #fff; }
+[hidden] { display: none !important; }
+.panel { position: static; width: 400px; height: 580px; max-height: 580px; border: 0; border-radius: 0; box-shadow: none; }
+.top { cursor: default; touch-action: auto; padding: 12px; gap: 8px; }
+.title { flex: 1; margin: 0; font-size: 16px; white-space: nowrap; }
+#count { color: #1ed760; }
+.popup-navigation { display: flex; gap: 4px; }
+.popup-navigation .nav-button { width: 28px; height: 28px; }
+.tools { gap: 3px; }
+.entries { flex: 1; min-height: 0; }
+.hint { min-height: 35px; }
+.connection-action { padding: 8px 12px; border: 1px solid #454545; border-radius: 5px; color: #fff; background: #2b2b2b; }
+.connection-action:hover { background: #383838; }
+button:disabled { cursor: default; opacity: .5; }

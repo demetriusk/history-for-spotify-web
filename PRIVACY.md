@@ -16,6 +16,8 @@ It doesn't read authentication cookies, passwords, account tokens, payment detai
 
 History stays in localStorage for `open.spotify.com` in your browser profile. This is website storage shared with Spotify's page, not an extension-only or encrypted storage area. Website scripts running on that origin can access it.
 
+The toolbar popup reads and updates these same records through the open Spotify tab, using Spotify-only site access and the scripting permission. It holds the displayed records temporarily in memory and doesn't maintain a separate persistent copy.
+
 The extension has no server and sends no listening-history export to its developer. It contains no analytics, advertising code, telemetry, AI API, or browser-sync feature.
 
 Spotify continues making its own requests under its own privacy policy. Displaying track artwork can request the stored image URL from Spotify's image service. Clicking a history entry searches Spotify for that title and artist. Choosing Queue opens Spotify search and uses Spotify's native menu, which can send the corresponding requests to Spotify. These actions are part of the feature you choose to use.

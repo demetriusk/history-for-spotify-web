@@ -15,13 +15,17 @@ const capture = require('../store/source/capture.cjs');
   };
   const context = await chromium.launchPersistentContext('', options);
   try {
+    let extensionId;
     if (executablePath) {
       const session = await context.browser().newBrowserCDPSession();
-      await session.send('Extensions.loadUnpacked', { path: `${root}/extension` });
+      extensionId = (await session.send('Extensions.loadUnpacked', { path: `${root}/extension` })).id;
       await session.detach();
+    } else {
+      extensionId = require('node:crypto').createHash('sha256').update(`${root}/extension`).digest('hex')
+        .slice(0, 32).replace(/[0-9a-f]/g, digit => String.fromCharCode(97 + parseInt(digit, 16)));
     }
     const result = await capture(context, {
-      root, iconData: `data:image/png;base64,${fs.readFileSync(`${root}/assets/icon-glass-master.png`).toString('base64')}`,
+      root, extensionId, iconData: `data:image/png;base64,${fs.readFileSync(`${root}/assets/icon-glass-master.png`).toString('base64')}`,
       backdropData: `data:image/png;base64,${fs.readFileSync(`${root}/assets/mesh-backdrop.png`).toString('base64')}`,
       playlist: JSON.parse(fs.readFileSync(`${root}/store/source/playlist.json`, 'utf8')),
       productName: JSON.parse(fs.readFileSync(`${root}/extension/manifest.json`, 'utf8')).name

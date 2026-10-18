@@ -6,12 +6,12 @@ The upload package is `dist/history-for-spotify-web-0.3.0.zip`. It has `manifest
 
 1. Publish the public repository and confirm the homepage, support, and privacy-policy links in `LISTING.md` open while signed out of GitHub.
 2. Load the unpacked extension in your everyday browser. Disable the Tampermonkey version, reload Spotify, and check real track recording and Queue on your account.
-3. Review the listing copy, all four screenshots, and the privacy disclosures. The screenshots use clearly labelled demonstration history from Alternative 80s.
+3. Review the listing copy, all five screenshots, and the privacy disclosures. The screenshots use clearly labelled demonstration history from Alternative 80s.
 4. Confirm your publisher account's current contact details and trader declaration. Free/open-source status alone doesn't decide trader status.
 
 ## Dashboard fields
 
-Create a new item and upload the ZIP. Paste the name and descriptions from `LISTING.md`. Upload the icon, four screenshots, and small tile listed in `ASSETS.md`. The marquee is optional.
+Create a new item and upload the ZIP. Paste the name and descriptions from `LISTING.md`. Upload the icon, five screenshots, and small tile listed in `ASSETS.md`. The marquee is optional.
 
 Paste the privacy-policy URL after the public repository is reachable. Use `PRIVACY-DISCLOSURES.md` to complete the single-purpose and data-use fields, reviewing their current wording rather than accepting them blindly. `REVIEWER-NOTES.md` provides a test path without sharing an account password.
 

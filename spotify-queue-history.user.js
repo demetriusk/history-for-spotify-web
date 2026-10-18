@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Spotify Web - Queue History
 // @namespace    local.spotify.queue-history
-// @version      0.2.7
+// @version      0.3.0
 // @description  Adds Back/Forward controls and local track history in place of Spotify's Install App button.
 // @match        https://open.spotify.com/*
 // @run-at       document-idle
@@ -16,8 +16,7 @@
 
   const KEY = 'spotify-web-local-queue-history-v1';
   const SETTINGS_KEY = `${KEY}-limit`;
-  let limit = Number(localStorage.getItem(SETTINGS_KEY)) || 50;
-  if (![50, 200, 500].includes(limit)) limit = 50;
+  let limit = loadLimit();
   const ID = 'swh-root';
   let history = loadHistory();
   let current = null;
@@ -29,6 +28,15 @@
   let queueBusy = false;
   let queueStatus = '';
   let queueRequest = 0;
+
+  function loadLimit() {
+    try {
+      const value = Number(localStorage.getItem(SETTINGS_KEY));
+      return [50, 200, 500].includes(value) ? value : 50;
+    } catch {
+      return 50;
+    }
+  }
 
   function loadHistory() {
     try {
@@ -73,21 +81,25 @@
     try {
       const data = JSON.parse(await file.text());
       const tracks = Array.isArray(data) ? data : data?.tracks;
-      if (!Array.isArray(tracks)) throw new Error('Choose a Spotify history JSON export.');
-      const imported = tracks.map(normalizeEntry);
-      if (imported.some(entry => !entry)) throw new Error('Import failed: the file contains invalid track records.');
-      const unique = new Map();
-      for (const entry of [...history, ...imported]) {
-        unique.set(JSON.stringify([entry.id, entry.startedAt, entry.endedAt]), entry);
-      }
-      history = [...unique.values()].sort((a, b) => (b.endedAt || b.startedAt) - (a.endedAt || a.startedAt)).slice(0, limit);
-      persist();
-      renderList();
-      updateButton();
+      mergeHistory(tracks);
       showStatus(`History imported. Keeping the latest ${limit} tracks; duplicates skipped.`);
     } catch (error) {
       showStatus(error instanceof SyntaxError ? 'Import failed: invalid JSON.' : error.message);
     }
+  }
+
+  function mergeHistory(tracks) {
+    if (!Array.isArray(tracks)) throw new Error('Choose a Spotify history JSON export.');
+    const imported = tracks.map(normalizeEntry);
+    if (imported.some(entry => !entry)) throw new Error('Import failed: the file contains invalid track records.');
+    const unique = new Map();
+    for (const entry of [...history, ...imported]) {
+      unique.set(JSON.stringify([entry.id, entry.startedAt, entry.endedAt]), entry);
+  }
+  history = [...unique.values()].sort((a, b) => (b.endedAt || b.startedAt) - (a.endedAt || a.startedAt)).slice(0, limit);
+  persist();
+  renderList();
+  updateButton();
   }
 
   function persist() {
@@ -917,6 +929,7 @@
   }
 
   function renderList() {
+    root.shadowRoot.querySelector('.settings select').value = String(limit);
     closeRowMenu();
     list.replaceChildren();
 
@@ -924,7 +937,7 @@
       list.append(make(
         'div',
         'empty',
-        'No previous tracks yet. Keep Spotify Web open and play another song; completed/left-behind tracks will appear here.'
+        'No previous tracks yet. Play another song in Spotify to start recording history.'
       ));
       return;
     }
@@ -1085,4 +1098,72 @@
 
   tick();
   setInterval(tick, 1700);
+
+  window.addEventListener('storage', event => {
+    if (event.key !== null && event.key !== KEY && event.key !== SETTINGS_KEY) return;
+    limit = loadLimit();
+    history = loadHistory();
+    updateButton();
+    if (opened) renderList();
+  });
+
+  // The toolbar popup delegates to the same state and native actions as the page panel.
+  window.addEventListener('swh-extension-request', async event => {
+    let request;
+    try { request = JSON.parse(event.detail); } catch { return; }
+    if (!request || typeof request.id !== 'string' || typeof request.action !== 'string') return;
+    try {
+      const entry = request.entry && history.find(item => item.id === request.entry.id &&
+        item.startedAt === request.entry.startedAt && item.endedAt === request.entry.endedAt);
+      if (['find', 'queue', 'remove'].includes(request.action) && !entry) throw new Error('This entry changed. Refresh history and try again.');
+      let status = '';
+      switch (request.action) {
+        case 'snapshot': break;
+        case 'find':
+          navigateTo(new URL(`https://open.spotify.com/search/${encodeURIComponent(`${entry.name} ${entry.artist}`.trim())}`));
+          setOpen(false);
+          break;
+        case 'queue':
+          if (queueBusy) throw new Error('Another Queue action is running.');
+          if (!/^[A-Za-z0-9]+$/.test(entry.id)) throw new Error('The exact track link is unavailable.');
+          await queueTrack(entry);
+          status = queueStatus;
+          break;
+        case 'remove':
+          history.splice(history.indexOf(entry), 1);
+          persist();
+          break;
+        case 'clear':
+          history = [];
+          persist();
+          break;
+        case 'limit':
+          if (![50, 200, 500].includes(request.limit)) throw new Error('Choose 50, 200, or 500 tracks.');
+          if (history.length > request.limit && request.confirmed !== true) throw new Error('Confirm before deleting older entries.');
+          limit = request.limit;
+          localStorage.setItem(SETTINGS_KEY, String(limit));
+          history = history.slice(0, limit);
+          persist();
+          break;
+        case 'import': {
+          const parsed = JSON.parse(request.json);
+          mergeHistory(Array.isArray(parsed) ? parsed : parsed?.tracks);
+          status = `History imported. Keeping the latest ${limit} tracks; duplicates skipped.`;
+          break;
+        }
+        case 'back': window.history.back(); break;
+        case 'forward': window.history.forward(); break;
+        default: throw new Error('Unknown history action.');
+      }
+      updateButton();
+      if (opened) renderList();
+      window.dispatchEvent(new CustomEvent('swh-extension-response', {
+        detail: JSON.stringify({ id: request.id, snapshot: { history, limit }, status })
+      }));
+    } catch (error) {
+      window.dispatchEvent(new CustomEvent('swh-extension-response', {
+        detail: JSON.stringify({ id: request.id, error: error.message })
+      }));
+    }
+  });
 })();

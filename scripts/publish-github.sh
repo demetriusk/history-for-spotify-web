@@ -7,6 +7,7 @@ repo='demetriusk/history-for-spotify-web'
 python3 scripts/build.py
 python3 scripts/check.py
 node --check extension/history.js
+node --check extension/popup.js
 
 login=$(gh api user --jq .login)
 if [ "$login" != 'demetriusk' ]; then
@@ -30,7 +31,7 @@ fi
 git add .gitignore .github README.md PRIVACY.md LICENSE CONTRIBUTING.md SECURITY.md package.json \
   spotify-queue-history.user.js 'Spotify Web - Queue History-0.1.0.txt' extension scripts tests assets store docs
 if ! git diff --cached --quiet; then
-  git commit -m 'Package History for Spotify Web as a Manifest V3 extension'
+  git commit -m 'Add toolbar history popup and update extension copy'
 fi
 if gh repo view "$repo" --json nameWithOwner >/dev/null 2>&1; then
   visibility=$(gh repo view "$repo" --json visibility --jq .visibility)

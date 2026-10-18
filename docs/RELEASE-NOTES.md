@@ -1,6 +1,8 @@
 # 0.3.0
 
-First Chrome extension package, based on the 0.2.7 Tampermonkey script.
+First Chrome extension package, based on the 0.3.0 Tampermonkey script.
+
+The in-page panel and browser toolbar popup share one history. Search, track actions, settings, and backups work in either view; the popup needs an open Spotify tab.
 
 The history panel records track changes in the open Spotify web player. Search titles or artists, keep 50/200/500 entries grouped by day, and export or import JSON backups. Each track's menu offers Copy link, Remove, and Queue when its exact ID is available. Queue uses Spotify's native control and returns to the previous screen. Back and Forward buttons sit beside the logo. Drag the history panel by its header to place it elsewhere in the window.
 

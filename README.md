@@ -1,8 +1,8 @@
 # History for Spotify Web
 
-Find the song that played three tracks ago.
+Good song. Gone already. What was it?
 
-History for Spotify Web adds a searchable listening history to Spotify's web player. Open **History** in the top bar to find a track, copy its link, or add it back to the queue through Spotify's own controls.
+History for Spotify Web adds a searchable listening history to Spotify's web player. Open **History** in the top bar or click the browser toolbar icon to find a track, copy its link, or add it back to the queue through Spotify's own controls. Both views use the same history.
 
 ![History panel and track actions](store/assets/01-history.png)
 
@@ -16,11 +16,11 @@ History for Spotify Web adds a searchable listening history to Spotify's web pla
 
 ## Why use the web player?
 
-If most of your day is already in a browser, Spotify can stay there too. Use a tab or an app-style browser window without installing another music client. You keep Spotify's own interface and sign in directly with Spotify.
+Desktop app hogging RAM? Cache getting chunky? Keep discovery, search, your library, and playlist management in your browser, without running a separate music client.
 
-This extension adds a way back to tracks you've played. It doesn't replace Spotify's player, fetch audio, or ask for a separate Spotify developer account.
+The web player can leave you without visible Back and Forward buttons, especially in an app-style window. This extension adds them beside the logo, plus a searchable track-by-track history. Find the song you just left and put it back in the queue.
 
-We haven't benchmarked startup time, memory use, or playback performance against the desktop app or unofficial clients. Choose the player that works best on your setup. History for Spotify Web is for people who prefer the browser.
+There are [Mac memory-use reports](https://community.spotify.com/forum/en/discussion/4886018/spotify-has-a-memory-leak-mac-desktop) on Spotify's forum. The desktop cache can be [cleared or moved](https://support.spotify.com/us/article/storage-information/). Spotify outlines the web player's [discovery and playlist features here](https://newsroom.spotify.com/2021-03-25/introducing-a-new-spotify-experience-across-desktop-app-and-web-player/).
 
 ## Install locally
 
@@ -45,6 +45,8 @@ The extension adds no Premium-only API calls. Spotify decides which playback and
 
 ## Your history
 
+The toolbar popup needs an open Spotify tab. It reads and updates the same records as the in-page panel; changes appear in both views. Its scripting permission and site access are limited to Spotify's web player.
+
 History and the selected limit stay in your browser's `open.spotify.com` site storage. There is no extension server, analytics, or browser sync. Spotify's page scripts can access that same site storage. Browser profiles and different browsers keep separate records.
 
 Changing to a smaller limit asks before deleting older entries. Export a backup first if you want to keep them. Import merges valid records, sorts the result by time, and keeps the newest records up to the selected limit.
@@ -65,7 +67,7 @@ node --check extension/history.js
 
 To publish this prepared tree to the public GitHub repository and attach the ZIP to a release, review and run `sh scripts/publish-github.sh` from a normal terminal authenticated as `demetriusk`. It uses a GitHub no-reply commit address and stages an explicit file list.
 
-The ZIP in `dist/` contains the manifest, compiled content script, four icons, and license. `extension/history.js` is generated from `spotify-queue-history.user.js`; edit the userscript, then rebuild.
+The ZIP in `dist/` contains the manifest, content script, toolbar popup, shared styles, four icons, and license. `extension/history.js` is generated from `spotify-queue-history.user.js`; edit the userscript, then rebuild.
 
 For browser tests, install the development dependencies and a test browser:
 

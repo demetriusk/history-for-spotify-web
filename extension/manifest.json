@@ -24,5 +24,15 @@
       "all_frames": false
     }
   ],
-  "homepage_url": "https://github.com/demetriusk/history-for-spotify-web"
+  "homepage_url": "https://github.com/demetriusk/history-for-spotify-web",
+  "permissions": [
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://open.spotify.com/*"
+  ],
+  "action": {
+    "default_title": "History for Spotify Web",
+    "default_popup": "popup.html"
+  }
 }

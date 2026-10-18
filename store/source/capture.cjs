@@ -1,5 +1,5 @@
 // Capture the installed extension on Spotify, then compose store-sized artwork.
-module.exports = async function captureAssets(context, { root, iconData, backdropData, playlist, productName }) {
+module.exports = async function captureAssets(context, { root, iconData, backdropData, playlist, productName, extensionId }) {
   const assetPath = `${root}/store/assets`;
   const art = await context.newPage();
   await art.goto(`file://${root}/store/source/blank.html`);
@@ -49,6 +49,17 @@ module.exports = async function captureAssets(context, { root, iconData, backdro
     await history.getByRole('searchbox', { name: 'Search history' }).click();
     await history.getByRole('button', { name: 'History options', exact: true }).click();
     await take('raw-options.png');
+    const popup = await context.newPage();
+    try {
+      await popup.setViewportSize({ width: 400, height: 580 });
+      await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+      await popup.locator('#entries .song').first().waitFor();
+      await popup.locator('img').evaluateAll(images => Promise.all(images.map(image => image.decode())));
+      const buffer = await popup.screenshot({ path: `${assetPath}/raw-popup.png`, scale: 'css' });
+      snapshots.push(buffer.toString('base64'));
+    } finally {
+      await popup.close();
+    }
   } finally {
     await player.close();
   }
@@ -57,7 +68,8 @@ module.exports = async function captureAssets(context, { root, iconData, backdro
     ['01-history.png', 'Find the song<br>you just played.', 'Find it in your local listening history.', 'Tracks grouped by day, right inside the web player.'],
     ['02-search.png', 'Find it by title<br>or artist.', 'Search the tracks you recorded here.', 'Your history is searchable without leaving the panel.'],
     ['03-queue.png', 'Put it back<br>in the queue.', 'Use Spotify’s own Add to queue control.', 'Copy an exact track link or remove an entry from the same menu.'],
-    ['04-options.png', 'Your history,<br>in your browser.', 'Keep 50, 200, or 500 entries.', 'Export a JSON backup. Bring it to another browser.']
+    ['04-options.png', 'Your history,<br>in your browser.', 'Keep 50, 200, or 500 entries.', 'Export a JSON backup. Bring it to another browser.'],
+    ['05-toolbar.png', 'One click.<br>There it is.', 'The same history in your toolbar.', 'Search, queue, and manage tracks with a Spotify tab open.']
   ];
   try {
     await art.setViewportSize({ width: 1280, height: 800 });

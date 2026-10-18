@@ -12,7 +12,7 @@ The content script runs only on https://open.spotify.com/*. It reads the display
 
 ## Permissions
 
-There are no extra API permissions, no background worker, and no broad host permissions. Spotify-only access is declared through the content-script match pattern. MAIN-world execution preserves the userscript's interaction with Spotify's native drag handlers and page navigation. It provides no privileged Chrome APIs to Spotify.
+The scripting permission and host permission for https://open.spotify.com/* let the toolbar popup read and update the history in the open Spotify tab. The popup queries Spotify tabs and runs the bundled action bridge in that tab. There is no background worker, tabs permission, or access to other sites. MAIN-world execution preserves Spotify's native drag handlers and page navigation. No privileged Chrome APIs are exposed to Spotify.
 
 ## Data categories to disclose
 
