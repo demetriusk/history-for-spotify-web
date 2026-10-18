@@ -22,14 +22,19 @@ The web player can leave you without visible Back and Forward buttons, especiall
 
 There are [Mac memory-use reports](https://community.spotify.com/forum/en/discussion/4886018/spotify-has-a-memory-leak-mac-desktop) on Spotify's forum. The desktop cache can be [cleared or moved](https://support.spotify.com/us/article/storage-information/). Spotify outlines the web player's [discovery and playlist features here](https://newsroom.spotify.com/2021-03-25/introducing-a-new-spotify-experience-across-desktop-app-and-web-player/).
 
-## Install locally
+## Install without the Chrome Web Store
 
-Chrome Web Store publication is pending. To try the unpacked extension:
+The store version is awaiting review. For personal testing, you can load the extension from GitHub. No build tools needed.
 
-1. Run `python3 scripts/build.py` from this folder.
-2. Open `chrome://extensions`, enable Developer mode, and choose **Load unpacked**.
-3. Select the `extension` folder, then reload `https://open.spotify.com/`.
-4. Disable the matching Tampermonkey script if you previously installed it.
+1. [Download the source ZIP](https://github.com/demetriusk/history-for-spotify-web/archive/refs/heads/main.zip) and extract it into a folder you will keep.
+2. Open `chrome://extensions` in Chrome or `vivaldi://extensions` in Vivaldi, then enable **Developer mode**.
+3. Click **Load unpacked** and select the `extension` folder inside the extracted project. It contains `manifest.json`.
+4. Disable the matching Tampermonkey script if you use it, then reload Spotify's tab or PWA with **Ctrl+R** or **⌘R** on Mac.
+5. Play a song, then move to another. Open **History** in Spotify's top bar or click the extension's toolbar icon.
+
+Keep the extracted folder in place; the browser loads the extension from it. Local installs don't receive automatic store updates. To update, download the source again, replace the files in the same folder, click the extension's reload button on the Extensions page, then reload Spotify.
+
+Once the store version is available, disable the local copy before installing it. Your history stays in Spotify's site storage in the same browser profile.
 
 The extension uses Manifest V3 and requires Chromium 114 or later. Chrome is the store target. Chromium browsers that support Chrome extensions, including Vivaldi, can load the same package; browser-specific PWA behaviour may vary. Browser extensions don't add features to Spotify's desktop or mobile apps.
 
