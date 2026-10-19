@@ -723,6 +723,16 @@
       const trigger = button.getBoundingClientRect();
       navigation.hidden = nav.right + 8 > trigger.left && nav.left < trigger.right &&
         nav.top < trigger.bottom && nav.bottom > trigger.top;
+      const header = button.closest('[data-testid="global-nav"], header, [role="banner"]');
+      if (header && !navigation.hidden) {
+        navigation.hidden = [...header.children, ...header.querySelectorAll('a, button, input, [role="button"]')]
+          .filter(element => !element.contains(button))
+          .some(element => {
+            const rect = element.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0 && nav.right + 8 > rect.left && nav.left < rect.right &&
+              nav.top < rect.bottom && nav.bottom > rect.top;
+          });
+      }
     }
     positionDraggedPanel();
   }
@@ -743,18 +753,25 @@
     }
 
     const install = document.querySelector('a[href="/download"]');
-    if (install) {
-      if (installButton !== install) {
-        if (installButton) installButton.style.display = installDisplay;
-        installButton = install;
-        installDisplay = install.style.display;
-      }
-      button.className = install.className.split(/\s+/)
+    if (installButton) installButton.style.display = installDisplay;
+    if (installButton !== install) {
+      installButton = install;
+      installDisplay = install?.style.display;
+    }
+    const visible = element => element?.getBoundingClientRect().width > 0 &&
+      element.getBoundingClientRect().height > 0 && getComputedStyle(element).visibility !== 'hidden';
+    const header = [...document.querySelectorAll('[data-testid="global-nav"], header, [role="banner"]')]
+      .find(element => visible(element) && element.getBoundingClientRect().top < 80);
+    const profile = document.querySelector('[data-testid="user-widget-link"]');
+    const anchor = visible(install) ? install : visible(profile) ? profile :
+      [...(header?.children || [])].reverse().find(element => element !== button && visible(element));
+    if (anchor) {
+      button.className = (install?.className || '').split(/\s+/)
         .filter(name => !name.endsWith('--leading')).join(' ');
       button.setAttribute('data-encore-id', 'buttonTertiary');
-      button.style.cssText = '';
-      if (button.nextElementSibling !== install) install.before(button);
-      install.style.display = 'none';
+      button.style.cssText = 'display: inline-flex; align-items: center; flex-shrink: 0; white-space: nowrap; border: 0; background: transparent; color: var(--text-subdued, #b3b3b3); padding: 8px 12px; cursor: pointer; font: 700 12px var(--encore-body-font-stack, system-ui, sans-serif);';
+      if (button.nextElementSibling !== anchor) anchor.before(button);
+      if (install) install.style.display = 'none';
 
       const rect = button.getBoundingClientRect();
       panel.style.top = `${rect.bottom + 8}px`;
@@ -764,14 +781,20 @@
       return;
     }
 
-    if (installButton) {
-      installButton.style.display = installDisplay;
-      installButton = null;
+    if (button.getRootNode() !== root.shadowRoot) {
       root.shadowRoot.insertBefore(button, panel);
       button.className = `trigger${opened ? ' active' : ''}`;
       button.removeAttribute('data-encore-id');
       button.style.cssText = '';
       panel.style.cssText = '';
+    }
+
+    if (logo) {
+      const rect = logo.getBoundingClientRect();
+      button.style.cssText = `top: ${rect.top}px; right: 16px; bottom: auto;`;
+      panel.style.top = `${rect.bottom + 8}px`;
+      panel.style.bottom = 'auto';
+      return;
     }
 
     const queue = document.querySelector(

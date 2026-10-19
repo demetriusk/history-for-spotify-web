@@ -203,6 +203,31 @@ module.exports = async function verifyQueueHistory(page, source, original) {
     'Navigation returns when the header has space again');
 
   await page.evaluate(() => {
+    document.querySelector('a[href="/download"]').remove();
+    document.querySelector('header').lastElementChild.setAttribute('data-testid', 'user-widget-link');
+    window.__historyTick();
+  });
+  for (const width of [1200, 420, 360]) {
+    await page.setViewportSize({ width, height: 700 });
+    await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+    check(await page.getByRole('button', { name: 'History 1', exact: true }).evaluate(button => {
+      const a = button.getBoundingClientRect();
+      const b = document.querySelector('[data-testid="user-widget-link"]').getBoundingClientRect();
+      return a.width > 0 && a.top >= 0 && a.bottom <= 48 && a.left >= 0 && a.right <= b.left;
+    }), `History stays in the top bar without Install App at ${width}px`);
+  }
+  await page.evaluate(() => {
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'none';
+    wrapper.innerHTML = '<a href="/download">Install App</a>';
+    document.querySelector('header').prepend(wrapper);
+    window.__historyTick();
+  });
+  check(await page.getByRole('button', { name: 'History 1', exact: true }).isVisible(),
+    'A hidden Install App container cannot hide History');
+  await page.setViewportSize({ width: 1200, height: 682 });
+
+  await page.evaluate(() => {
     document.querySelector('header').innerHTML = '<a class="spotify-logo" href="/" aria-label="Spotify">S</a><a class="e-10860-legacy-button" href="/download">Install App</a>';
     window.__historyTick();
   });
