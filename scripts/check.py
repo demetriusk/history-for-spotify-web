@@ -13,6 +13,7 @@ assert len(manifest['name']) <= 75
 assert manifest.get('permissions') == ['scripting']
 assert manifest.get('host_permissions') == ['https://open.spotify.com/*']
 assert manifest['action']['default_popup'] == 'popup.html'
+assert manifest['action']['default_icon'] == {str(size): f'icons/toolbar-{size}.png' for size in (16, 24, 32)}
 assert not manifest.get('web_accessible_resources')
 assert manifest['content_scripts'] == [{
     'matches': ['https://open.spotify.com/*'], 'js': ['history.js'],
@@ -27,12 +28,18 @@ for size in (16, 32, 48, 128):
     png = (ROOT / f'extension/icons/icon-{size}.png').read_bytes()
     assert png[:8] == b'\x89PNG\r\n\x1a\n'
     assert struct.unpack('>II', png[16:24]) == (size, size)
+for size in (16, 24, 32):
+    png = (ROOT / f'extension/icons/toolbar-{size}.png').read_bytes()
+    assert png[:8] == b'\x89PNG\r\n\x1a\n'
+    assert struct.unpack('>II', png[16:24]) == (size, size)
+    assert png[25] == 6, 'Toolbar icons must retain their alpha channel'
 archive = ROOT / 'dist' / f'{json.loads((ROOT / "package.json").read_text())["name"]}-{manifest["version"]}.zip'
 with ZipFile(archive) as bundle:
     assert bundle.testzip() is None
     assert sorted(bundle.namelist()) == sorted([
         'manifest.json', 'history.js', 'history.css', 'popup.html', 'popup.js', 'popup.css', 'LICENSE',
-        *[f'icons/icon-{size}.png' for size in (16, 32, 48, 128)]
+        *[f'icons/icon-{size}.png' for size in (16, 32, 48, 128)],
+        *[f'icons/toolbar-{size}.png' for size in (16, 24, 32)]
     ])
     for name in bundle.namelist():
         source = ROOT / ('LICENSE' if name == 'LICENSE' else f'extension/{name}')

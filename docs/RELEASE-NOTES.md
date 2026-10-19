@@ -1,3 +1,11 @@
+# 0.3.1
+
+History stays in the top bar when Install App is hidden or missing, including smaller PWA windows. Back and Forward hide when there is not enough space beside Spotify’s controls.
+
+The browser toolbar uses a minimal green history icon on a transparent background.
+
+Existing history and settings are preserved. No new permissions.
+
 # 0.3.0
 
 First Chrome extension package, based on the 0.3.0 Tampermonkey script.

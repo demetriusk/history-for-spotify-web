@@ -14,6 +14,7 @@ assert '${' not in css, 'Shared popup CSS must be static'
 (EXTENSION / 'history.css').write_text('/* Generated from the userscript panel styles. */\n' + css)
 manifest = json.loads((EXTENSION / 'manifest.json').read_text())
 files = ['manifest.json', 'history.js', 'history.css', 'popup.html', 'popup.js', 'popup.css', *[f'icons/icon-{size}.png' for size in (16, 32, 48, 128)]]
+files += [f'icons/toolbar-{size}.png' for size in (16, 24, 32)]
 output = ROOT / 'dist' / f'{json.loads((ROOT / "package.json").read_text())["name"]}-{manifest["version"]}.zip'
 output.parent.mkdir(exist_ok=True)
 with ZipFile(output, 'w', ZIP_DEFLATED) as archive:

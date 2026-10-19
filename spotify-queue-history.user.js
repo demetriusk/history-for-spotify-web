@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Spotify Web - Queue History
 // @namespace    local.spotify.queue-history
-// @version      0.3.0
+// @version      0.3.1
 // @description  Adds Back/Forward controls and local track history in place of Spotify's Install App button.
 // @match        https://open.spotify.com/*
 // @run-at       document-idle

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "History for Spotify Web",
   "short_name": "History",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Find tracks you played in Spotify's web player. Search local history, copy links, and add songs back to your queue.",
   "minimum_chrome_version": "114",
   "icons": {
@@ -33,6 +33,11 @@
   ],
   "action": {
     "default_title": "History for Spotify Web",
+    "default_icon": {
+      "16": "icons/toolbar-16.png",
+      "24": "icons/toolbar-24.png",
+      "32": "icons/toolbar-32.png"
+    },
     "default_popup": "popup.html"
   }
 }

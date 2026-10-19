@@ -16,6 +16,13 @@ const { chromium } = require('playwright');
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       await page.screenshot({ path: `${root}/extension/icons/icon-${size}.png`, omitBackground: true, scale: 'css' });
     }
+    const toolbar = `data:image/svg+xml;base64,${fs.readFileSync(`${root}/assets/icon.svg`).toString('base64')}`;
+    for (const size of [16, 24, 32]) {
+      await page.setViewportSize({ width: size, height: size });
+      await page.setContent(`<style>html,body{margin:0;background:transparent}img{display:block;width:100vw;height:100vh}</style><img src="${toolbar}" alt="">`);
+      await page.locator('img').evaluate(image => image.decode());
+      await page.screenshot({ path: `${root}/extension/icons/toolbar-${size}.png`, omitBackground: true, scale: 'css' });
+    }
   } finally {
     await browser.close();
   }
