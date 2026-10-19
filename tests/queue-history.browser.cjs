@@ -15,9 +15,10 @@ module.exports = async function verifyQueueHistory(page, source, original) {
       <a href="/artist/Artist1">Artist</a><a href="/artist/Artist1">Artist</a>
     </div></footer>`;
   };
-  const boot = async (script, markup, stored = '[]', capacity = 50) => {
+  const boot = async (script, markup, stored = '[]', capacity = 50, language = 'en-US') => {
     await page.setContent(markup);
-    await page.evaluate(({ script, key, stored, capacity }) => {
+    await page.evaluate(({ script, key, stored, capacity, language }) => {
+      Object.defineProperty(navigator, 'language', { configurable: true, value: language });
       const values = new Map([[key, stored], [`${key}-limit`, String(capacity)]]);
       Object.defineProperty(window, 'localStorage', { configurable: true, value: {
         getItem: name => values.get(name) ?? null,
@@ -27,7 +28,7 @@ module.exports = async function verifyQueueHistory(page, source, original) {
       delete window.__spotifyQueueHistoryInstalled;
       // Absolute URLs let these fixtures run on about:blank without navigation.
       (0, eval)(script);
-    }, { script, key, stored, capacity });
+    }, { script, key, stored, capacity, language });
   };
   const absolute = markup => markup.replaceAll('href="/', 'href="https://open.spotify.com/');
   const change = async markup => page.evaluate(markup => {
@@ -356,7 +357,7 @@ module.exports = async function verifyQueueHistory(page, source, original) {
                 const item = document.createElement('button');
                 item.setAttribute('role', 'menuitem');
                 item.setAttribute('aria-disabled', 'false');
-                item.textContent = 'Add to queue';
+                item.textContent = options.label || 'Add to queue';
                 item.addEventListener('click', () => {
                   window.__queuedIds.push(button.dataset.track);
                   menu.remove();
@@ -388,6 +389,16 @@ module.exports = async function verifyQueueHistory(page, source, original) {
       'Queue returns to the previous screen without pressing Play or opening the track page');
     check((await queueStatus().textContent()).includes('Queue request sent'),
       'Queue reports that the request was sent rather than claiming unverified playback state');
+
+    for (const label of ['Añadir a la cola', 'Agregar a la cola', 'Adicionar à fila']) {
+      await prepareQueue({ label });
+      await page.locator('#swh-root .more-action').click();
+      await page.locator('#swh-root').getByRole('menuitem', { name: 'Add First to queue', exact: true }).click();
+      await page.waitForFunction(() => window.__queuedIds.length === 1);
+      await loading().waitFor({ state: 'hidden' });
+      check((await page.evaluate(() => window.__queuedIds)).join() === draggableTrack.id,
+        `Queue recognises the native ${label} label independently of the extension language`);
+    }
 
     await prepareQueue({ unavailable: true });
     await page.locator('#swh-root').getByRole('button', { name: 'More options for First', exact: true }).click();
@@ -563,5 +574,25 @@ module.exports = async function verifyQueueHistory(page, source, original) {
     'A dragged panel stays inside the viewport after resizing');
   await historyRoot.getByRole('button', { name: 'History options', exact: true }).click();
   check(await historyRoot.locator('.settings').isVisible(), 'Header controls stay clickable after dragging');
+  for (const [language, title, placeholder, keep, queue, today] of [
+    ['pt-BR', 'Histórico', 'Buscar no histórico', '50 músicas', 'Adicionar à fila', 'Hoje'],
+    ['es-MX', 'Historial', 'Buscar en el historial', '50 canciones', 'Añadir a la cola', 'Hoy'],
+    ['fr-FR', 'History', 'Search history', '50 tracks', 'Queue', 'Today']
+  ]) {
+    await page.setViewportSize({ width: 420, height: 700 });
+    await boot(source, header + absolute(fixture('Second', 'Track2')), JSON.stringify([sample[0]]), 50, language);
+    await page.getByRole('button', { name: `${title} 1`, exact: true }).click();
+    check(await historyRoot.getByRole('searchbox').getAttribute('placeholder') === placeholder &&
+      await historyRoot.locator('.day').textContent() === today, `${language}: search and day headings are localized with English fallback`);
+    await historyRoot.locator('.settings-toggle').click();
+    check(await historyRoot.locator('option[value="50"]').textContent() === keep,
+      `${language}: retention uses translated track counts`);
+    await historyRoot.locator('.more-action').click();
+    check(await historyRoot.locator('.row-actions button').first().textContent() === queue,
+      `${language}: row actions are localized`);
+    await historyRoot.locator('.more-action').click();
+    check(await historyRoot.locator('.panel').evaluate(panel => panel.scrollWidth <= panel.clientWidth),
+      `${language}: translated controls fit the narrow panel`);
+  }
   return results;
 };

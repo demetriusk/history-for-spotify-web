@@ -1,6 +1,6 @@
 # Submit to the Chrome Web Store
 
-The upload package is `dist/history-for-spotify-web-0.3.1.zip`. It has `manifest.json` at the archive root. The unpacked folder is `extension/`.
+The upload package is `dist/history-for-spotify-web-0.3.2.zip`. It has `manifest.json` at the archive root. The unpacked folder is `extension/`.
 
 ## Before submission
 

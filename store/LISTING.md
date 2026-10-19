@@ -23,7 +23,9 @@ Desktop app hogging RAM? Cache getting chunky? Keep discovery, search, your libr
 
 Your history stays in Spotify's site storage in this browser. No extension account, server, analytics, or uploads. Clear it from either view, or clear Spotify's site data. Keep a Spotify tab open to use the toolbar popup.
 
-Recording starts after installation and captures track changes while the web player is open, including skips. It can't recover earlier listening sessions. Queue uses Spotify's own controls, currently needs its English interface, and adds songs to Next in queue. Spotify controls availability; no Premium-only API calls are added.
+Recording starts after installation and captures track changes while the web player is open, including skips. It can't recover earlier listening sessions. Queue uses Spotify's own controls, supports its English, Brazilian Portuguese, and Spanish interfaces, and adds songs to Next in queue. Spotify controls availability; no Premium-only API calls are added.
+
+Available in English, Brazilian Portuguese, and Spanish. Follows your browser language.
 
 Free and open source. MIT license.
 Source and support: https://github.com/demetriusk/history-for-spotify-web

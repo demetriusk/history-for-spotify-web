@@ -6,38 +6,39 @@
   <title>History for Spotify Web</title>
   <link rel="stylesheet" href="history.css">
   <link rel="stylesheet" href="popup.css">
+  <script src="i18n.js" defer></script>
   <script src="popup.js" defer></script>
 </head>
 <body>
-<section class="panel" aria-label="Spotify queue history">
+<section class="panel" aria-label="Spotify queue history" data-i18n-aria-label="Spotify queue history">
   <header class="top">
-    <div class="popup-navigation" role="group" aria-label="Spotify page navigation">
-      <button id="back" class="nav-button" type="button" aria-label="Back" title="Back in Spotify"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 5l-7 7 7 7"/></svg></button>
-      <button id="forward" class="nav-button" type="button" aria-label="Forward" title="Forward in Spotify"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 5l7 7-7 7"/></svg></button>
+    <div class="popup-navigation" role="group" aria-label="Spotify page navigation" data-i18n-aria-label="Spotify page navigation">
+      <button id="back" class="nav-button" type="button" aria-label="Back" data-i18n-aria-label="Back" title="Back in Spotify" data-i18n-title="Back in Spotify"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.5 5l-7 7 7 7"/></svg></button>
+      <button id="forward" class="nav-button" type="button" aria-label="Forward" data-i18n-aria-label="Forward" title="Forward in Spotify" data-i18n-title="Forward in Spotify"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 5l7 7-7 7"/></svg></button>
     </div>
-    <h1 class="title">History <span id="count"></span></h1>
+    <h1 class="title"><span data-i18n="History">History</span> <span id="count"></span></h1>
     <div class="tools">
-      <button id="options" class="settings-toggle" type="button" aria-label="History options" title="History options" aria-expanded="false" aria-controls="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M10 2h4l1 3 2 1 3-1 2 4-2 2v2l2 2-2 4-3-1-2 1-1 3h-4l-1-3-2-1-3 1-2-4 2-2v-2L2 9l2-4 3 1 2-1z"/><circle cx="12" cy="12" r="3"/></svg></button>
-      <button id="clear" type="button" title="Delete locally recorded history">Clear</button>
-      <button id="close" type="button" aria-label="Close history">✕</button>
+      <button id="options" class="settings-toggle" type="button" aria-label="History options" data-i18n-aria-label="History options" title="History options" data-i18n-title="History options" aria-expanded="false" aria-controls="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M10 2h4l1 3 2 1 3-1 2 4-2 2v2l2 2-2 4-3-1-2 1-1 3h-4l-1-3-2-1-3 1-2-4 2-2v-2L2 9l2-4 3 1 2-1z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      <button id="clear" type="button" title="Delete locally recorded history" data-i18n-title="Delete locally recorded history" data-i18n="Clear">Clear</button>
+      <button id="close" type="button" aria-label="Close history" data-i18n-aria-label="Close history">✕</button>
     </div>
   </header>
   <div id="settings" class="settings" hidden>
     <div class="settings-controls">
-      <label>Keep<select id="limit" aria-label="History limit"><option value="50">50 tracks</option><option value="200">200 tracks</option><option value="500">500 tracks</option></select></label>
-      <button id="export" class="queue-action" type="button">Export</button>
-      <button id="import" class="queue-action" type="button">Import</button>
+      <label><span data-i18n="Keep">Keep</span><select id="limit" aria-label="History limit" data-i18n-aria-label="History limit"><option value="50" data-i18n-count="50">50 tracks</option><option value="200" data-i18n-count="200">200 tracks</option><option value="500" data-i18n-count="500">500 tracks</option></select></label>
+      <button id="export" class="queue-action" type="button" data-i18n="Export">Export</button>
+      <button id="import" class="queue-action" type="button" data-i18n="Import">Import</button>
       <input id="file" type="file" accept=".json,application/json" hidden>
     </div>
   </div>
-  <div class="filters"><input id="search" class="search" type="search" placeholder="Search history" aria-label="Search history"></div>
+  <div class="filters"><input id="search" class="search" type="search" placeholder="Search history" data-i18n-placeholder="Search history" aria-label="Search history" data-i18n-aria-label="Search history"></div>
   <div id="entries" class="entries"></div>
   <div id="connection" class="empty" hidden>
     <p id="connection-message"></p>
-    <button id="open" class="connection-action" type="button">Open Spotify</button>
-    <button id="reload" class="connection-action" type="button" hidden>Reload Spotify</button>
+    <button id="open" class="connection-action" type="button" data-i18n="Open Spotify">Open Spotify</button>
+    <button id="reload" class="connection-action" type="button" hidden data-i18n="Reload Spotify">Reload Spotify</button>
   </div>
-  <div id="status" class="hint" role="status">Connecting to Spotify…</div>
+  <div id="status" class="hint" role="status" data-i18n="Connecting to Spotify…">Connecting to Spotify…</div>
 </section>
 </body>
 </html>

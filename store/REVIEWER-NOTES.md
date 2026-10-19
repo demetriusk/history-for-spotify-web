@@ -2,7 +2,7 @@
 
 The extension adds its UI inside https://open.spotify.com/. The browser toolbar icon opens the same history and actions in a popup, which requires an open Spotify tab. There is no extension login. Use your own Spotify account; no developer account or API credentials are required.
 
-1. Install the package, open the Spotify web player, and sign in directly with Spotify. Set the Spotify interface to English to test Queue.
+1. Install the package, open the Spotify web player, and sign in directly with Spotify. Queue supports Spotify’s English, Brazilian Portuguese, and Spanish menu labels. The extension follows the browser language with English as the fallback.
 2. Play a song, then move to another song. Open History in the top bar or through the browser toolbar icon. The track you left appears in the list. The extension records visible track changes, including skips.
 3. Search the list by title or artist. Open the row's more-options button to try Copy link or Remove. Clicking a row opens a Spotify search without intentionally starting playback.
 4. Open the header cog. Change the limit, export a JSON backup, and import it again. Re-importing the same records doesn't duplicate those plays. A smaller limit asks before trimming existing history.

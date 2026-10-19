@@ -152,6 +152,48 @@ module.exports = async function verifyExtension(chromium, extensionPath, executa
     check(await page.locator('#swh-root').count() === 0, 'The extension does not inject outside open.spotify.com');
     await navigation.getByRole('button', { name: 'Open Spotify', exact: true }).waitFor({ timeout: 6000 });
     check(await navigation.getByRole('searchbox').isDisabled(), 'Toolbar without a Spotify tab explains how to connect');
+    for (const [language, title, search, queue, remove, copied, limit] of [
+      ['pt-BR', 'Histórico', 'Buscar no histórico', 'Adicionar à fila', 'Remover', 'Link de First track copiado.', '200 músicas'],
+      ['es-MX', 'Historial', 'Buscar en el historial', 'Añadir a la cola', 'Eliminar', 'Enlace de First track copiado.', '200 canciones']
+    ]) {
+      const localizedPage = await context.newPage();
+      const localizedPopup = await context.newPage();
+      for (const target of [localizedPage, localizedPopup]) {
+        target.on('pageerror', error => errors.push(error.message));
+        await target.addInitScript(({ language }) => {
+          Object.defineProperty(navigator, 'language', { value: language, configurable: true });
+        }, { language });
+      }
+      await localizedPage.addInitScript(({ saved }) => {
+        localStorage.setItem('spotify-web-local-queue-history-v1', saved);
+      }, { saved });
+      await localizedPage.goto('https://open.spotify.com/');
+      await localizedPage.getByRole('button', { name: `${title} 1`, exact: true }).waitFor();
+      await localizedPopup.setViewportSize({ width: 400, height: 580 });
+      await localizedPopup.goto(`chrome-extension://${extensionId}/popup.html`);
+      await localizedPopup.locator('#entries .song').waitFor();
+      check(await localizedPopup.locator('h1').textContent() === `${title} 1` &&
+        await localizedPopup.getByRole('searchbox').getAttribute('placeholder') === search,
+        `${language}: packaged popup and page use the browser language`);
+      await localizedPopup.locator('#options').click();
+      check(await localizedPopup.locator('option[value="200"]').textContent() === limit,
+        `${language}: popup settings are translated`);
+      await localizedPopup.locator('.more-action').click();
+      check(await localizedPopup.locator('.row-actions button').first().textContent() === queue,
+        `${language}: popup Queue label is translated`);
+      await localizedPopup.locator('.row-actions button').nth(1).click();
+      await localizedPopup.getByRole('status').filter({ hasText: copied }).waitFor();
+      check(true, `${language}: popup Copy link shows a translated status`);
+      check(await localizedPopup.locator('.top').evaluate(header => header.scrollWidth <= header.clientWidth),
+        `${language}: popup header fits without horizontal overflow`);
+      await localizedPopup.locator('.more-action').click();
+      await localizedPopup.getByRole('menuitem', { name: new RegExp(remove) }).click();
+      await localizedPage.getByRole('button', { name: title, exact: true }).waitFor();
+      check(await localizedPage.evaluate(() => localStorage.getItem('spotify-web-local-queue-history-v1')) === '[]',
+        `${language}: translated Remove updates the shared page history`);
+      await localizedPopup.close();
+      await localizedPage.close();
+    }
     check(errors.length === 0, `No page errors from bundled startup: ${errors.join(', ')}`);
     return results;
   } finally {

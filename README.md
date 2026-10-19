@@ -14,6 +14,8 @@ History for Spotify Web adds a searchable listening history to Spotify's web pla
 - Exports and imports history as JSON, skipping duplicate records on import.
 - Adds Back and Forward buttons beside the Spotify logo. Drag the history panel by its header to move it.
 
+The panel and toolbar popup follow your browser language: English, Brazilian Portuguese, or Spanish. Other languages fall back to English.
+
 ## Why use the web player?
 
 Desktop app hogging RAM? Cache getting chunky? Keep discovery, search, your library, and playlist management in your browser, without running a separate music client.
@@ -44,7 +46,7 @@ History starts when you install the extension. It records changes it observes in
 
 Queue uses Spotify search and the matching track's native **Add to queue** control. A loading state covers the search while it runs, then returns you to the previous screen. The track goes into **Next in queue**. Moving it into **Next up** depends on Spotify; that cross-section drag has removed tracks in the tested player. The extension doesn't change that behaviour.
 
-Queue relies on the English “Add to queue” menu label. Other Spotify interface languages are not yet supported for that action. When an exact track ID isn't available, a history entry can still open search and be removed; Queue and Copy link are unavailable for that entry. Spotify UI changes can break selectors.
+Queue recognises Spotify’s English, Brazilian Portuguese, and Spanish menu labels, independently of your browser language. When an exact track ID isn't available, a history entry can still open search and be removed; Queue and Copy link are unavailable for that entry. Spotify UI changes can break selectors.
 
 The extension adds no Premium-only API calls. Spotify decides which playback and queue controls are available to your account and active device.
 

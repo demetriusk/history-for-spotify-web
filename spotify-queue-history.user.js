@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Spotify Web - Queue History
 // @namespace    local.spotify.queue-history
-// @version      0.3.1
+// @version      0.3.2
 // @description  Adds Back/Forward controls and local track history in place of Spotify's Install App button.
 // @match        https://open.spotify.com/*
 // @run-at       document-idle
@@ -11,6 +11,169 @@
 
 (() => {
   'use strict';
+  // Shared with the toolbar popup by scripts/build.py.
+  function createTranslations(language) {
+    const locale = /^pt(?:-|_|$)/i.test(language) ? 'pt-BR' : /^es(?:-|_|$)/i.test(language) ? 'es' : 'en';
+    const messages = {
+      "pt-BR": {
+        "History": "Histórico",
+        "Recently played": "Ouvidas recentemente",
+        "Back": "Voltar",
+        "Forward": "Avançar",
+        "Back in Spotify": "Voltar no Spotify",
+        "Forward in Spotify": "Avançar no Spotify",
+        "Page navigation": "Navegação de páginas",
+        "Spotify page navigation": "Navegação no Spotify",
+        "Spotify queue history": "Histórico de músicas do Spotify",
+        "Previously played Spotify Web tracks": "Músicas ouvidas no Spotify Web",
+        "Drag to move history": "Arraste para mover o histórico",
+        "Clear": "Limpar",
+        "Close history": "Fechar histórico",
+        "Delete locally recorded queue history": "Apagar o histórico salvo neste navegador",
+        "Delete locally recorded history": "Apagar o histórico salvo neste navegador",
+        "Clear Spotify Web queue history saved in this browser?": "Apagar o histórico do Spotify Web salvo neste navegador?",
+        "History options": "Opções do histórico",
+        "Keep": "Manter",
+        "History limit": "Limite do histórico",
+        "{count} tracks": "{count} músicas",
+        "Export": "Exportar",
+        "Import": "Importar",
+        "Search history": "Buscar no histórico",
+        "Adding to queue": "Adicionando à fila",
+        "Adding to queue…": "Adicionando à fila…",
+        "Waiting for Spotify track details.": "Aguardando informações da música.",
+        "Waiting for Spotify track details. Start a song in the Web Player.": "Aguardando informações da música. Reproduza uma música no Spotify Web.",
+        "Tracking: {name}.": "Ouvindo: {name}.",
+        "History imported. Keeping the latest {count} tracks; duplicates skipped.": "Histórico importado. Mantidas as últimas {count} músicas, sem duplicatas.",
+        "Import failed: invalid JSON.": "Não foi possível importar: JSON inválido.",
+        "Choose a Spotify history JSON export.": "Escolha um arquivo JSON exportado do histórico.",
+        "Import failed: the file contains invalid track records.": "Não foi possível importar: o arquivo contém registros de músicas inválidos.",
+        "Keep only the latest {count} tracks? Older entries will be deleted. Export first to keep a backup.": "Manter apenas as últimas {count} músicas? Os registros mais antigos serão apagados. Exporte antes para guardar uma cópia.",
+        "Finding {name} in Spotify…": "Buscando {name} no Spotify…",
+        "Queue action canceled.": "Ação de fila cancelada.",
+        "The exact track was not found. Choose it in Spotify search to queue it.": "A música exata não foi encontrada. Escolha a música na busca do Spotify para adicioná-la à fila.",
+        "Add to queue is unavailable in this Spotify session. Check its native menu.": "Adicionar à fila não está disponível nesta sessão do Spotify. Confira o menu da música.",
+        "Queue request sent for {name}. Check Spotify’s queue.": "Pedido enviado para adicionar {name}. Confira a fila do Spotify.",
+        "No previous tracks yet. Play another song in Spotify to start recording history.": "Ainda não há músicas no histórico. Reproduza outra música no Spotify para começar.",
+        "No matching tracks.": "Nenhuma música encontrada.",
+        "Today": "Hoje",
+        "Yesterday": "Ontem",
+        "Find in Spotify": "Buscar no Spotify",
+        "Unknown artist": "Artista desconhecido",
+        "More options for {name}": "Mais opções para {name}",
+        "Actions for {name}": "Ações para {name}",
+        "Wait…": "Aguarde…",
+        "Queue": "Adicionar à fila",
+        "Add {name} to queue": "Adicionar {name} à fila",
+        "Add to queue using Spotify search and its native menu": "Adicionar à fila pela busca e pelo menu do Spotify",
+        "Copy link": "Copiar link",
+        "Copy link to {name}": "Copiar link de {name}",
+        "Link copied for {name}.": "Link de {name} copiado.",
+        "Could not copy. Allow clipboard access in your browser.": "Não foi possível copiar. Permita o acesso à área de transferência no navegador.",
+        "Remove": "Remover",
+        "Remove {name} from history": "Remover {name} do histórico",
+        "This entry changed. Refresh history and try again.": "Este registro mudou. Atualize o histórico e tente novamente.",
+        "Another Queue action is running.": "Outra ação de fila está em andamento.",
+        "The exact track link is unavailable.": "O link exato da música não está disponível.",
+        "Choose 50, 200, or 500 tracks.": "Escolha 50, 200 ou 500 músicas.",
+        "Confirm before deleting older entries.": "Confirme antes de apagar os registros mais antigos.",
+        "Unknown history action.": "Ação de histórico desconhecida.",
+        "Reload the Spotify tab to connect this version of History.": "Recarregue a aba do Spotify para conectar esta versão do Histórico.",
+        "Could not connect to Spotify.": "Não foi possível conectar ao Spotify.",
+        "Open Spotify to access the history stored in its web player.": "Abra o Spotify para acessar o histórico salvo no navegador.",
+        "Connecting to Spotify…": "Conectando ao Spotify…",
+        "Connected to Spotify. History stays in this browser.": "Conectado ao Spotify. O histórico fica neste navegador.",
+        "History updated.": "Histórico atualizado.",
+        "Search opened in Spotify.": "Busca aberta no Spotify.",
+        "Open Spotify": "Abrir Spotify",
+        "Reload Spotify": "Recarregar Spotify",
+        "Reloading Spotify…": "Recarregando o Spotify…",
+        "Moved back in Spotify.": "Página anterior no Spotify.",
+        "Moved forward in Spotify.": "Próxima página no Spotify."
+      },
+      "es": {
+        "History": "Historial",
+        "Recently played": "Escuchadas recientemente",
+        "Back": "Atrás",
+        "Forward": "Adelante",
+        "Back in Spotify": "Volver en Spotify",
+        "Forward in Spotify": "Avanzar en Spotify",
+        "Page navigation": "Navegación de páginas",
+        "Spotify page navigation": "Navegación en Spotify",
+        "Spotify queue history": "Historial de canciones de Spotify",
+        "Previously played Spotify Web tracks": "Canciones escuchadas en Spotify Web",
+        "Drag to move history": "Arrastra para mover el historial",
+        "Clear": "Borrar",
+        "Close history": "Cerrar historial",
+        "Delete locally recorded queue history": "Borrar el historial guardado en este navegador",
+        "Delete locally recorded history": "Borrar el historial guardado en este navegador",
+        "Clear Spotify Web queue history saved in this browser?": "¿Borrar el historial de Spotify Web guardado en este navegador?",
+        "History options": "Opciones del historial",
+        "Keep": "Guardar",
+        "History limit": "Límite del historial",
+        "{count} tracks": "{count} canciones",
+        "Export": "Exportar",
+        "Import": "Importar",
+        "Search history": "Buscar en el historial",
+        "Adding to queue": "Añadiendo a la cola",
+        "Adding to queue…": "Añadiendo a la cola…",
+        "Waiting for Spotify track details.": "Esperando los datos de la canción.",
+        "Waiting for Spotify track details. Start a song in the Web Player.": "Esperando los datos de la canción. Reproduce una canción en Spotify Web.",
+        "Tracking: {name}.": "Sonando: {name}.",
+        "History imported. Keeping the latest {count} tracks; duplicates skipped.": "Historial importado. Se guardan las últimas {count} canciones, sin duplicados.",
+        "Import failed: invalid JSON.": "No se pudo importar: JSON no válido.",
+        "Choose a Spotify history JSON export.": "Elige un archivo JSON exportado del historial.",
+        "Import failed: the file contains invalid track records.": "No se pudo importar: el archivo contiene registros de canciones no válidos.",
+        "Keep only the latest {count} tracks? Older entries will be deleted. Export first to keep a backup.": "¿Guardar solo las últimas {count} canciones? Se borrarán las entradas más antiguas. Exporta primero para guardar una copia.",
+        "Finding {name} in Spotify…": "Buscando {name} en Spotify…",
+        "Queue action canceled.": "Acción de cola cancelada.",
+        "The exact track was not found. Choose it in Spotify search to queue it.": "No se encontró la canción exacta. Elígela en la búsqueda de Spotify para añadirla a la cola.",
+        "Add to queue is unavailable in this Spotify session. Check its native menu.": "Añadir a la cola no está disponible en esta sesión de Spotify. Comprueba el menú de la canción.",
+        "Queue request sent for {name}. Check Spotify’s queue.": "Solicitud enviada para añadir {name}. Comprueba la cola de Spotify.",
+        "No previous tracks yet. Play another song in Spotify to start recording history.": "Aún no hay canciones en el historial. Reproduce otra canción en Spotify para empezar.",
+        "No matching tracks.": "No se encontraron canciones.",
+        "Today": "Hoy",
+        "Yesterday": "Ayer",
+        "Find in Spotify": "Buscar en Spotify",
+        "Unknown artist": "Artista desconocido",
+        "More options for {name}": "Más opciones para {name}",
+        "Actions for {name}": "Acciones para {name}",
+        "Wait…": "Espera…",
+        "Queue": "Añadir a la cola",
+        "Add {name} to queue": "Añadir {name} a la cola",
+        "Add to queue using Spotify search and its native menu": "Añadir a la cola mediante la búsqueda y el menú de Spotify",
+        "Copy link": "Copiar enlace",
+        "Copy link to {name}": "Copiar enlace de {name}",
+        "Link copied for {name}.": "Enlace de {name} copiado.",
+        "Could not copy. Allow clipboard access in your browser.": "No se pudo copiar. Permite el acceso al portapapeles en el navegador.",
+        "Remove": "Eliminar",
+        "Remove {name} from history": "Eliminar {name} del historial",
+        "This entry changed. Refresh history and try again.": "Esta entrada ha cambiado. Actualiza el historial e inténtalo de nuevo.",
+        "Another Queue action is running.": "Ya hay otra acción de cola en curso.",
+        "The exact track link is unavailable.": "El enlace exacto de la canción no está disponible.",
+        "Choose 50, 200, or 500 tracks.": "Elige 50, 200 o 500 canciones.",
+        "Confirm before deleting older entries.": "Confirma antes de borrar las entradas más antiguas.",
+        "Unknown history action.": "Acción de historial desconocida.",
+        "Reload the Spotify tab to connect this version of History.": "Recarga la pestaña de Spotify para conectar esta versión del Historial.",
+        "Could not connect to Spotify.": "No se pudo conectar con Spotify.",
+        "Open Spotify to access the history stored in its web player.": "Abre Spotify para acceder al historial guardado en su reproductor web.",
+        "Connecting to Spotify…": "Conectando con Spotify…",
+        "Connected to Spotify. History stays in this browser.": "Conectado con Spotify. El historial se guarda en este navegador.",
+        "History updated.": "Historial actualizado.",
+        "Search opened in Spotify.": "Búsqueda abierta en Spotify.",
+        "Open Spotify": "Abrir Spotify",
+        "Reload Spotify": "Recargar Spotify",
+        "Reloading Spotify…": "Recargando Spotify…",
+        "Moved back in Spotify.": "Página anterior en Spotify.",
+        "Moved forward in Spotify.": "Página siguiente en Spotify."
+      }
+    };
+    const t = (text, values = {}) => (messages[locale]?.[text] || text)
+      .replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? `{${key}}`));
+    return { t, locale };
+  }
+  // End shared translations.
+  const { t, locale } = createTranslations(navigator.language);
   if (window.__spotifyQueueHistoryInstalled) return;
   window.__spotifyQueueHistoryInstalled = true;
 
@@ -82,16 +245,16 @@
       const data = JSON.parse(await file.text());
       const tracks = Array.isArray(data) ? data : data?.tracks;
       mergeHistory(tracks);
-      showStatus(`History imported. Keeping the latest ${limit} tracks; duplicates skipped.`);
+      showStatus(t('History imported. Keeping the latest {count} tracks; duplicates skipped.', { count: limit }));
     } catch (error) {
-      showStatus(error instanceof SyntaxError ? 'Import failed: invalid JSON.' : error.message);
+      showStatus(error instanceof SyntaxError ? t('Import failed: invalid JSON.') : error.message);
     }
   }
 
   function mergeHistory(tracks) {
-    if (!Array.isArray(tracks)) throw new Error('Choose a Spotify history JSON export.');
+    if (!Array.isArray(tracks)) throw new Error(t('Choose a Spotify history JSON export.'));
     const imported = tracks.map(normalizeEntry);
-    if (imported.some(entry => !entry)) throw new Error('Import failed: the file contains invalid track records.');
+    if (imported.some(entry => !entry)) throw new Error(t('Import failed: the file contains invalid track records.'));
     const unique = new Map();
     for (const entry of [...history, ...imported]) {
       unique.set(JSON.stringify([entry.id, entry.startedAt, entry.endedAt]), entry);
@@ -187,8 +350,8 @@
   function trackChange() {
     const detected = readCurrentTrack();
     hint.textContent = queueStatus || (detected
-      ? `Tracking: ${detected.name}.`
-      : 'Waiting for Spotify track details. Start a song in the Web Player.');
+      ? t('Tracking: {name}.', { name: detected.name })
+      : t('Waiting for Spotify track details. Start a song in the Web Player.'));
     if (!detected) return;
 
     if (!current) {
@@ -224,6 +387,7 @@
   function setup() {
     root = document.createElement('div');
     root.id = ID;
+    root.lang = locale;
 
     const shadow = root.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
@@ -500,16 +664,16 @@
 
     shadow.append(style);
 
-    button = make('button', 'trigger', 'History');
+    button = make('button', 'trigger', t('History'));
     button.type = 'button';
-    button.title = 'Previously played Spotify Web tracks';
+    button.title = t('Previously played Spotify Web tracks');
     button.setAttribute('aria-expanded', 'false');
     button.addEventListener('click', () => setOpen(!opened));
 
     backButton = make('button', 'nav-button');
     backButton.type = 'button';
-    backButton.title = 'Back';
-    backButton.setAttribute('aria-label', 'Back');
+    backButton.title = t('Back');
+    backButton.setAttribute('aria-label', t('Back'));
     backButton.addEventListener('click', () => {
       setOpen(false);
       window.history.back();
@@ -517,8 +681,8 @@
 
     forwardButton = make('button', 'nav-button');
     forwardButton.type = 'button';
-    forwardButton.title = 'Forward';
-    forwardButton.setAttribute('aria-label', 'Forward');
+    forwardButton.title = t('Forward');
+    forwardButton.setAttribute('aria-label', t('Forward'));
     forwardButton.addEventListener('click', () => {
       setOpen(false);
       window.history.forward();
@@ -539,15 +703,15 @@
     }
     navigation = make('div', 'navigation');
     navigation.setAttribute('role', 'group');
-    navigation.setAttribute('aria-label', 'Page navigation');
+    navigation.setAttribute('aria-label', t('Page navigation'));
     navigation.append(backButton, forwardButton);
 
     panel = make('section', 'panel');
     panel.hidden = true;
-    panel.setAttribute('aria-label', 'Spotify queue history');
+    panel.setAttribute('aria-label', t('Spotify queue history'));
 
     const top = make('div', 'top');
-    top.title = 'Drag to move history';
+    top.title = t('Drag to move history');
     let drag = null;
     top.addEventListener('pointerdown', event => {
       if (event.button !== 0 || !event.isPrimary || event.target.closest('button')) return;
@@ -567,15 +731,15 @@
     top.addEventListener('pointerup', endDrag);
     top.addEventListener('pointercancel', endDrag);
     top.addEventListener('lostpointercapture', endDrag);
-    const title = make('div', 'title', 'Recently played');
+    const title = make('div', 'title', t('Recently played'));
     const tools = make('div', 'tools');
 
-    const clear = make('button', null, 'Clear');
+    const clear = make('button', null, t('Clear'));
     clear.type = 'button';
-    clear.title = 'Delete locally recorded queue history';
+    clear.title = t('Delete locally recorded queue history');
 
     clear.addEventListener('click', () => {
-      if (!confirm('Clear Spotify Web queue history saved in this browser?')) return;
+      if (!confirm(t('Clear Spotify Web queue history saved in this browser?'))) return;
       history = [];
       persist();
       renderList();
@@ -584,7 +748,7 @@
 
     const close = make('button', null, '✕');
     close.type = 'button';
-    close.title = 'Close history';
+    close.title = t('Close history');
     close.addEventListener('click', () => setOpen(false));
 
     tools.append(clear, close);
@@ -596,23 +760,23 @@
     hint = make(
       'div',
       'hint',
-      'Waiting for Spotify track details.'
+      t('Waiting for Spotify track details.')
     );
     hint.setAttribute('role', 'status');
 
     const filters = make('div', 'filters');
     search = make('input', 'search');
     search.type = 'search';
-    search.placeholder = 'Search history';
-    search.setAttribute('aria-label', 'Search history');
+    search.placeholder = t('Search history');
+    search.setAttribute('aria-label', t('Search history'));
     search.addEventListener('input', renderList);
     const settings = make('div', 'settings');
     settings.hidden = true;
     settings.id = 'history-options';
     const settingsToggle = make('button', 'settings-toggle');
     settingsToggle.type = 'button';
-    settingsToggle.title = 'History options';
-    settingsToggle.setAttribute('aria-label', 'History options');
+    settingsToggle.title = t('History options');
+    settingsToggle.setAttribute('aria-label', t('History options'));
     settingsToggle.setAttribute('aria-expanded', 'false');
     settingsToggle.setAttribute('aria-controls', settings.id);
     const cog = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -640,18 +804,18 @@
       settingsToggle.setAttribute('aria-expanded', String(!settings.hidden));
     });
     const controls = make('div', 'settings-controls');
-    const label = make('label', null, 'Keep');
+    const label = make('label', null, t('Keep'));
     const capacity = make('select');
-    capacity.setAttribute('aria-label', 'History limit');
+    capacity.setAttribute('aria-label', t('History limit'));
     for (const value of [50, 200, 500]) {
-      const option = make('option', null, `${value} tracks`);
+      const option = make('option', null, t('{count} tracks', { count: value }));
       option.value = value;
       capacity.append(option);
     }
     capacity.value = limit;
     capacity.addEventListener('change', () => {
       const next = Number(capacity.value);
-      if (history.length > next && !confirm(`Keep only the latest ${next} tracks? Older entries will be deleted. Export first to keep a backup.`)) {
+      if (history.length > next && !confirm(t('Keep only the latest {count} tracks? Older entries will be deleted. Export first to keep a backup.', { count: next }))) {
         capacity.value = limit;
         return;
       }
@@ -663,7 +827,7 @@
       updateButton();
     });
     label.append(capacity);
-    const exportButton = make('button', 'queue-action', 'Export');
+    const exportButton = make('button', 'queue-action', t('Export'));
     exportButton.type = 'button';
     exportButton.addEventListener('click', exportHistory);
     const file = make('input');
@@ -674,7 +838,7 @@
       await importHistory(file.files[0]);
       file.value = '';
     });
-    const importButton = make('button', 'queue-action', 'Import');
+    const importButton = make('button', 'queue-action', t('Import'));
     importButton.type = 'button';
     importButton.addEventListener('click', () => file.click());
     controls.append(label, exportButton, importButton, file);
@@ -685,8 +849,8 @@
     queueLoading.hidden = true;
     queueLoading.setAttribute('role', 'status');
     const progress = make('progress');
-    progress.setAttribute('aria-label', 'Adding to queue');
-    queueLoading.append(make('span', null, 'Adding to queue…'), progress);
+    progress.setAttribute('aria-label', t('Adding to queue'));
+    queueLoading.append(make('span', null, t('Adding to queue…')), progress);
     shadow.append(navigation, button, panel, queueLoading);
     document.body.append(root);
 
@@ -702,8 +866,8 @@
 
   function updateButton() {
     if (button) {
-      button.replaceChildren(document.createTextNode('History'));
-      button.setAttribute('aria-label', `History${history.length ? ` ${history.length}` : ''}`);
+      button.replaceChildren(document.createTextNode(t('History')));
+      button.setAttribute('aria-label', `${t('History')}${history.length ? ` ${history.length}` : ''}`);
       if (history.length) {
         const count = make('span', null, String(history.length));
         count.style.color = 'var(--text-bright-accent, #1ed760)';
@@ -888,7 +1052,7 @@
     if (queueBusy) return;
     const request = ++queueRequest;
     queueBusy = true;
-    queueStatus = `Finding ${entry.name} in Spotify…`;
+    queueStatus = t('Finding {name} in Spotify…', { name: entry.name });
     hint.textContent = queueStatus;
     renderList();
     positionQueueLoading();
@@ -902,7 +1066,7 @@
     async function waitFor(read, message) {
       const deadline = Date.now() + 5000;
       while (Date.now() < deadline) {
-        if (request !== queueRequest || location.href !== destination) throw new Error('Queue action canceled.');
+        if (request !== queueRequest || location.href !== destination) throw new Error(t('Queue action canceled.'));
         const result = read();
         if (result) return result;
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -912,9 +1076,9 @@
 
     try {
       const more = await waitFor(() => findSearchMenu(entry.id),
-        'The exact track was not found. Choose it in Spotify search to queue it.');
+        t('The exact track was not found. Choose it in Spotify search to queue it.'));
       await new Promise(resolve => setTimeout(resolve, 0));
-      if (request !== queueRequest || location.href !== destination) throw new Error('Queue action canceled.');
+      if (request !== queueRequest || location.href !== destination) throw new Error(t('Queue action canceled.'));
       more.click();
       const action = await waitFor(() => {
         for (const menu of document.querySelectorAll('[role="menu"]')) {
@@ -922,14 +1086,15 @@
             new URL(link.href).searchParams.get('highlight') === `spotify:track:${entry.id}`);
           if (!matchingTrack) continue;
           const item = [...menu.querySelectorAll('button[role="menuitem"]')].find(button =>
-            button.textContent.trim().toLowerCase() === 'add to queue');
+            ['add to queue', 'añadir a la cola', 'agregar a la cola', 'adicionar à fila'].includes(
+              button.textContent.trim().toLocaleLowerCase().replace(/\s+/g, ' ')));
           if (item && !item.disabled && item.getAttribute('aria-disabled') !== 'true') return item;
-          throw new Error('Add to queue is unavailable in this Spotify session. Check its native menu.');
+          throw new Error(t('Add to queue is unavailable in this Spotify session. Check its native menu.'));
         }
         return null;
-      }, 'Add to queue is unavailable in this Spotify session. Check its native menu.');
+      }, t('Add to queue is unavailable in this Spotify session. Check its native menu.'));
       action.click();
-      queueStatus = `Queue request sent for ${entry.name}. Check Spotify’s queue.`;
+      queueStatus = t('Queue request sent for {name}. Check Spotify’s queue.', { name: entry.name });
       if (previous !== destination && request === queueRequest && location.href === destination && window.history.state?.key === searchKey) {
         await new Promise(resolve => {
           const done = () => {
@@ -966,7 +1131,7 @@
       list.append(make(
         'div',
         'empty',
-        'No previous tracks yet. Play another song in Spotify to start recording history.'
+        t('No previous tracks yet. Play another song in Spotify to start recording history.')
       ));
       return;
     }
@@ -974,7 +1139,7 @@
     const query = search.value.trim().toLocaleLowerCase();
     const entries = history.filter(entry => `${entry.name} ${entry.artist}`.toLocaleLowerCase().includes(query));
     if (!entries.length) {
-      list.append(make('div', 'empty', 'No matching tracks.'));
+      list.append(make('div', 'empty', t('No matching tracks.')));
       return;
     }
     const today = new Date().toDateString();
@@ -985,8 +1150,8 @@
       const date = new Date(entry.endedAt || entry.startedAt);
       const key = date.toDateString();
       if (day !== key) {
-        const heading = make('h3', 'day', key === today ? 'Today' : key === yesterday.toDateString() ? 'Yesterday' :
-          date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }));
+        const heading = make('h3', 'day', key === today ? t('Today') : key === yesterday.toDateString() ? t('Yesterday') :
+          date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' }));
         list.append(heading);
         day = key;
       }
@@ -994,7 +1159,7 @@
       const row = make('div', 'entry');
       const link = make('a', 'track-link');
       link.href = `https://open.spotify.com/search/${encodeURIComponent(`${entry.name} ${entry.artist}`.trim())}`;
-      link.title = 'Find in Spotify';
+      link.title = t('Find in Spotify');
       link.draggable = exact;
       link.addEventListener('click', event => openTrack(event, link.href));
       if (exact) {
@@ -1024,7 +1189,7 @@
       );
 
       metadata.append(
-        make('div', 'artist', entry.artist || 'Unknown artist')
+        make('div', 'artist', entry.artist || t('Unknown artist'))
       );
 
       const time = make(
@@ -1040,13 +1205,13 @@
       row.append(link);
       const more = make('button', 'more-action', '⋯');
       more.type = 'button';
-      more.setAttribute('aria-label', `More options for ${entry.name}`);
+      more.setAttribute('aria-label', t("More options for {name}", { name: entry.name }));
       more.setAttribute('aria-haspopup', 'menu');
       more.setAttribute('aria-expanded', 'false');
       const actions = make('div', 'row-actions');
       actions.popover = 'auto';
       actions.setAttribute('role', 'menu');
-      actions.setAttribute('aria-label', `Actions for ${entry.name}`);
+      actions.setAttribute('aria-label', t("Actions for {name}", { name: entry.name }));
       more.popoverTargetElement = actions;
       actions.addEventListener('toggle', event => {
         const active = event.newState === 'open';
@@ -1079,31 +1244,31 @@
         if (event.key === 'Tab') actions.hidePopover();
       });
       if (exact) {
-        const queue = make('button', 'queue-action', queueBusy ? 'Wait…' : 'Queue');
+        const queue = make('button', 'queue-action', queueBusy ? t('Wait…') : t('Queue'));
         queue.type = 'button';
         queue.setAttribute('role', 'menuitem');
-        queue.setAttribute('aria-label', `Add ${entry.name} to queue`);
-        queue.title = 'Add to queue using Spotify search and its native menu';
+        queue.setAttribute('aria-label', t("Add {name} to queue", { name: entry.name }));
+        queue.title = t('Add to queue using Spotify search and its native menu');
         queue.disabled = queueBusy;
         queue.addEventListener('click', () => queueTrack(entry));
-        const copy = make('button', 'queue-action', 'Copy link');
+        const copy = make('button', 'queue-action', t('Copy link'));
         copy.type = 'button';
         copy.setAttribute('role', 'menuitem');
-        copy.setAttribute('aria-label', `Copy link to ${entry.name}`);
+        copy.setAttribute('aria-label', t("Copy link to {name}", { name: entry.name }));
         copy.addEventListener('click', async () => {
           try {
             await navigator.clipboard.writeText(entry.url);
-            showStatus(`Link copied for ${entry.name}.`);
+            showStatus(t("Link copied for {name}.", { name: entry.name }));
           } catch {
-            showStatus('Could not copy. Allow clipboard access in your browser.');
+            showStatus(t('Could not copy. Allow clipboard access in your browser.'));
           }
         });
         actions.append(queue, copy);
       }
-      const remove = make('button', 'queue-action', 'Remove');
+      const remove = make('button', 'queue-action', t('Remove'));
       remove.type = 'button';
       remove.setAttribute('role', 'menuitem');
-      remove.setAttribute('aria-label', `Remove ${entry.name} from history`);
+      remove.setAttribute('aria-label', t("Remove {name} from history", { name: entry.name }));
       remove.addEventListener('click', () => {
         history.splice(history.indexOf(entry), 1);
         persist();
@@ -1144,7 +1309,7 @@
     try {
       const entry = request.entry && history.find(item => item.id === request.entry.id &&
         item.startedAt === request.entry.startedAt && item.endedAt === request.entry.endedAt);
-      if (['find', 'queue', 'remove'].includes(request.action) && !entry) throw new Error('This entry changed. Refresh history and try again.');
+      if (['find', 'queue', 'remove'].includes(request.action) && !entry) throw new Error(t('This entry changed. Refresh history and try again.'));
       let status = '';
       switch (request.action) {
         case 'snapshot': break;
@@ -1153,8 +1318,8 @@
           setOpen(false);
           break;
         case 'queue':
-          if (queueBusy) throw new Error('Another Queue action is running.');
-          if (!/^[A-Za-z0-9]+$/.test(entry.id)) throw new Error('The exact track link is unavailable.');
+          if (queueBusy) throw new Error(t('Another Queue action is running.'));
+          if (!/^[A-Za-z0-9]+$/.test(entry.id)) throw new Error(t('The exact track link is unavailable.'));
           await queueTrack(entry);
           status = queueStatus;
           break;
@@ -1167,8 +1332,8 @@
           persist();
           break;
         case 'limit':
-          if (![50, 200, 500].includes(request.limit)) throw new Error('Choose 50, 200, or 500 tracks.');
-          if (history.length > request.limit && request.confirmed !== true) throw new Error('Confirm before deleting older entries.');
+          if (![50, 200, 500].includes(request.limit)) throw new Error(t('Choose 50, 200, or 500 tracks.'));
+          if (history.length > request.limit && request.confirmed !== true) throw new Error(t('Confirm before deleting older entries.'));
           limit = request.limit;
           localStorage.setItem(SETTINGS_KEY, String(limit));
           history = history.slice(0, limit);
@@ -1177,12 +1342,12 @@
         case 'import': {
           const parsed = JSON.parse(request.json);
           mergeHistory(Array.isArray(parsed) ? parsed : parsed?.tracks);
-          status = `History imported. Keeping the latest ${limit} tracks; duplicates skipped.`;
+          status = t('History imported. Keeping the latest {count} tracks; duplicates skipped.', { count: limit });
           break;
         }
         case 'back': window.history.back(); break;
         case 'forward': window.history.forward(); break;
-        default: throw new Error('Unknown history action.');
+        default: throw new Error(t('Unknown history action.'));
       }
       updateButton();
       if (opened) renderList();
@@ -1191,7 +1356,7 @@
       }));
     } catch (error) {
       window.dispatchEvent(new CustomEvent('swh-extension-response', {
-        detail: JSON.stringify({ id: request.id, error: error.message })
+        detail: JSON.stringify({ id: request.id, error: error instanceof SyntaxError ? t('Import failed: invalid JSON.') : error.message })
       }));
     }
   });

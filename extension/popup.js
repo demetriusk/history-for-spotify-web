@@ -1,5 +1,15 @@
 'use strict';
 
+const { t, locale } = createTranslations(navigator.language);
+document.documentElement.lang = locale;
+for (const element of document.querySelectorAll('[data-i18n]')) element.textContent = t(element.dataset.i18n);
+for (const element of document.querySelectorAll('[data-i18n-count]')) element.textContent = t('{count} tracks', { count: element.dataset.i18nCount });
+for (const attribute of ['title', 'aria-label', 'placeholder']) {
+  for (const element of document.querySelectorAll(`[data-i18n-${attribute}]`)) {
+    element.setAttribute(attribute, t(element.getAttribute(`data-i18n-${attribute}`)));
+  }
+}
+
 const ui = Object.fromEntries(['count', 'options', 'settings', 'limit', 'clear', 'close', 'export', 'import', 'file',
   'search', 'entries', 'connection', 'connection-message', 'open', 'reload', 'status', 'back', 'forward']
   .map(id => [id, document.getElementById(id)]));
@@ -17,12 +27,12 @@ function make(tag, className, text) {
 async function request(action, data = {}) {
   const [response] = await chrome.scripting.executeScript({
     target: { tabId: tab.id }, world: 'MAIN',
-    args: [{ action, ...data }],
-    func: data => new Promise((resolve, reject) => {
+    args: [{ action, ...data }, t('Reload the Spotify tab to connect this version of History.')],
+    func: (data, timeoutMessage) => new Promise((resolve, reject) => {
       const id = crypto.randomUUID();
       const timeout = setTimeout(() => {
         window.removeEventListener('swh-extension-response', receive);
-        reject(new Error('Reload the Spotify tab to connect this version of History.'));
+        reject(new Error(timeoutMessage));
       }, data.action === 'queue' ? 15000 : 3000);
       function receive(event) {
         let reply;
@@ -36,7 +46,7 @@ async function request(action, data = {}) {
       window.dispatchEvent(new CustomEvent('swh-extension-request', { detail: JSON.stringify({ ...data, id }) }));
     })
   });
-  if (!response?.result) throw new Error('Could not connect to Spotify.');
+  if (!response?.result) throw new Error(t('Could not connect to Spotify.'));
   if (response.result.error) throw new Error(response.result.error);
   return response.result;
 }
@@ -57,7 +67,7 @@ async function refresh() {
     const tabs = await chrome.tabs.query({ url: 'https://open.spotify.com/*' });
     const selected = tabs.find(item => item.id === tab?.id) ||
       tabs.sort((a, b) => Number(b.active) - Number(a.active) || (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
-    if (!selected) { tab = null; disconnected('Open Spotify to access the history stored in its web player.'); return; }
+    if (!selected) { tab = null; disconnected(t('Open Spotify to access the history stored in its web player.')); return; }
     const changedTab = tab?.id !== selected.id;
     tab = selected;
     const reply = await request('snapshot');
@@ -67,7 +77,7 @@ async function refresh() {
     ui.connection.hidden = true;
     for (const id of ['clear', 'export', 'import', 'limit', 'back', 'forward', 'search']) ui[id].disabled = false;
     if (changed || reconnecting || !ui.entries.childElementCount) render();
-    if (reconnecting || ui.status.textContent === 'Connecting to Spotify…') ui.status.textContent = 'Connected to Spotify. History stays in this browser.';
+    if (reconnecting || ui.status.textContent === t('Connecting to Spotify…')) ui.status.textContent = t('Connected to Spotify. History stays in this browser.');
   } catch (error) {
     disconnected(error.message, true);
   }
@@ -77,12 +87,12 @@ async function act(action, data = {}, message = '') {
   if (busy || !tab) return;
   busy = true;
   document.querySelector('.row-actions:popover-open')?.hidePopover();
-  if (action === 'queue') ui.status.textContent = 'Adding to queue…';
+  if (action === 'queue') ui.status.textContent = t('Adding to queue…');
   render();
   try {
     const reply = await request(action, data);
     snapshot = reply.snapshot;
-    ui.status.textContent = reply.status || message || 'History updated.';
+    ui.status.textContent = reply.status || message || t('History updated.');
     return true;
   } catch (error) {
     ui.status.textContent = error.message;
@@ -101,7 +111,7 @@ function render() {
   const query = ui.search.value.trim().toLocaleLowerCase();
   const entries = snapshot.history.filter(entry => `${entry.name} ${entry.artist}`.toLocaleLowerCase().includes(query));
   if (!entries.length) {
-    ui.entries.append(make('div', 'empty', snapshot.history.length ? 'No matching tracks.' : 'No previous tracks yet. Play another song in Spotify to start recording history.'));
+    ui.entries.append(make('div', 'empty', snapshot.history.length ? t('No matching tracks.') : t('No previous tracks yet. Play another song in Spotify to start recording history.')));
     return;
   }
   const today = new Date().toDateString();
@@ -112,20 +122,20 @@ function render() {
     const date = new Date(entry.endedAt || entry.startedAt);
     const key = date.toDateString();
     if (key !== day) {
-      ui.entries.append(make('h3', 'day', key === today ? 'Today' : key === yesterday.toDateString() ? 'Yesterday' :
-        date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })));
+      ui.entries.append(make('h3', 'day', key === today ? t('Today') : key === yesterday.toDateString() ? t('Yesterday') :
+        date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })));
       day = key;
     }
     const exact = /^[A-Za-z0-9]+$/.test(entry.id);
     const row = make('div', 'entry');
     const link = make('a', 'track-link');
     link.href = `https://open.spotify.com/search/${encodeURIComponent(`${entry.name} ${entry.artist}`.trim())}`;
-    link.title = 'Find in Spotify';
+    link.title = t('Find in Spotify');
     link.draggable = exact;
     link.addEventListener('click', async event => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
-      if (!await act('find', { entry }, 'Search opened in Spotify.')) return;
+      if (!await act('find', { entry }, t('Search opened in Spotify.'))) return;
       await chrome.tabs.update(tab.id, { active: true });
       await chrome.windows.update(tab.windowId, { focused: true });
       window.close();
@@ -146,17 +156,17 @@ function render() {
       link.append(image);
     }
     const meta = make('div', 'meta');
-    meta.append(make('div', 'song', entry.name), make('div', 'artist', entry.artist || 'Unknown artist'));
-    link.append(meta, make('span', 'time', date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })));
+    meta.append(make('div', 'song', entry.name), make('div', 'artist', entry.artist || t('Unknown artist')));
+    link.append(meta, make('span', 'time', date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })));
     const more = make('button', 'more-action', '⋯');
     more.type = 'button';
-    more.setAttribute('aria-label', `More options for ${entry.name}`);
+    more.setAttribute('aria-label', t("More options for {name}", { name: entry.name }));
     more.setAttribute('aria-haspopup', 'menu');
     more.setAttribute('aria-expanded', 'false');
     const menu = make('div', 'row-actions');
     menu.popover = 'auto';
     menu.setAttribute('role', 'menu');
-    menu.setAttribute('aria-label', `Actions for ${entry.name}`);
+    menu.setAttribute('aria-label', t("Actions for {name}", { name: entry.name }));
     more.popoverTargetElement = menu;
     menu.addEventListener('toggle', event => {
       more.setAttribute('aria-expanded', String(event.newState === 'open'));
@@ -188,13 +198,13 @@ function render() {
       menu.append(button);
     };
     if (exact) {
-      addAction('Queue', `Add ${entry.name} to queue`, () => act('queue', { entry }));
-      addAction('Copy link', `Copy link to ${entry.name}`, async () => {
-        try { await navigator.clipboard.writeText(entry.url); ui.status.textContent = `Link copied for ${entry.name}.`; }
-        catch { ui.status.textContent = 'Could not copy. Allow clipboard access in your browser.'; }
+      addAction(t('Queue'), t("Add {name} to queue", { name: entry.name }), () => act('queue', { entry }));
+      addAction(t('Copy link'), t("Copy link to {name}", { name: entry.name }), async () => {
+        try { await navigator.clipboard.writeText(entry.url); ui.status.textContent = t("Link copied for {name}.", { name: entry.name }); }
+        catch { ui.status.textContent = t('Could not copy. Allow clipboard access in your browser.'); }
       });
     }
-    addAction('Remove', `Remove ${entry.name} from history`, () => act('remove', { entry }));
+    addAction(t('Remove'), t("Remove {name} from history", { name: entry.name }), () => act('remove', { entry }));
     row.append(link, more, menu);
     ui.entries.append(row);
   }
@@ -208,11 +218,11 @@ ui.options.addEventListener('click', () => {
 });
 ui.close.addEventListener('click', () => window.close());
 ui.clear.addEventListener('click', () => {
-  if (confirm('Clear Spotify Web queue history saved in this browser?')) act('clear');
+  if (confirm(t('Clear Spotify Web queue history saved in this browser?'))) act('clear');
 });
 ui.limit.addEventListener('change', () => {
   const limit = Number(ui.limit.value);
-  if (snapshot.history.length > limit && !confirm(`Keep only the latest ${limit} tracks? Older entries will be deleted. Export first to keep a backup.`)) {
+  if (snapshot.history.length > limit && !confirm(t('Keep only the latest {count} tracks? Older entries will be deleted. Export first to keep a backup.', { count: limit }))) {
     ui.limit.value = String(snapshot.limit);
     return;
   }
@@ -233,8 +243,8 @@ ui.file.addEventListener('change', async () => {
   ui.file.value = '';
 });
 ui.open.addEventListener('click', async () => { await chrome.tabs.create({ url: 'https://open.spotify.com/' }); window.close(); });
-ui.reload.addEventListener('click', async () => { if (tab) await chrome.tabs.reload(tab.id); ui.status.textContent = 'Reloading Spotify…'; });
-ui.back.addEventListener('click', () => act('back', {}, 'Moved back in Spotify.'));
-ui.forward.addEventListener('click', () => act('forward', {}, 'Moved forward in Spotify.'));
+ui.reload.addEventListener('click', async () => { if (tab) await chrome.tabs.reload(tab.id); ui.status.textContent = t('Reloading Spotify…'); });
+ui.back.addEventListener('click', () => act('back', {}, t('Moved back in Spotify.')));
+ui.forward.addEventListener('click', () => act('forward', {}, t('Moved forward in Spotify.')));
 refresh();
 setInterval(refresh, 1700);

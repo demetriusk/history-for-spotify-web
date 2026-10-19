@@ -1,3 +1,9 @@
+# 0.3.2
+
+The panel and toolbar popup now support Brazilian Portuguese and Spanish, following the browser language with English as the fallback. Queue recognises Spotify’s English, Portuguese, and Spanish menu labels.
+
+The package includes the top-bar and toolbar-icon fixes from 0.3.1. Existing history and settings are preserved. No new permissions.
+
 # 0.3.1
 
 History stays in the top bar when Install App is hidden or missing, including smaller PWA windows. Back and Forward hide when there is not enough space beside Spotify’s controls.

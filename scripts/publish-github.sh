@@ -46,8 +46,8 @@ if ! git remote get-url origin >/dev/null 2>&1; then
   git remote add origin "https://github.com/$repo.git"
 fi
 git -c 'credential.helper=!gh auth git-credential' push -u origin HEAD:main
-if ! gh release view v0.3.1 --repo "$repo" >/dev/null 2>&1; then
-  gh release create v0.3.1 dist/history-for-spotify-web-0.3.1.zip --repo "$repo" \
-    --title 'History for Spotify Web 0.3.1' --notes-file docs/RELEASE-NOTES.md
+if ! gh release view v0.3.2 --repo "$repo" >/dev/null 2>&1; then
+  gh release create v0.3.2 dist/history-for-spotify-web-0.3.2.zip --repo "$repo" \
+    --title 'History for Spotify Web 0.3.2' --notes-file docs/RELEASE-NOTES.md
 fi
 printf 'Repository: https://github.com/%s\n' "$repo"
