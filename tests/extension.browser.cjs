@@ -62,9 +62,36 @@ module.exports = async function verifyExtension(chromium, extensionPath, executa
     check(await popup.getByText('No matching tracks.', { exact: true }).isVisible(), 'Toolbar popup searches local history');
     await popup.getByRole('searchbox').fill('');
     await popup.getByRole('button', { name: 'History options', exact: true }).click();
-    await popup.getByRole('combobox').selectOption('200');
+    await popup.getByRole('combobox', { name: 'History limit' }).selectOption('200');
     await page.waitForFunction(() => localStorage.getItem('spotify-web-local-queue-history-v1-limit') === '200');
     check(true, 'Toolbar retention changes persist in Spotify site storage');
+    check(await popup.locator('#position').inputValue() === 'player', 'Button position defaults to Player bar');
+    await popup.locator('#position').selectOption('floating');
+    await page.waitForFunction(() => localStorage.getItem('spotify-web-local-queue-history-v1-position') === 'floating');
+    check(await page.locator('#swh-root .trigger').evaluate(button => button.classList.contains('icon-trigger') && !button.classList.contains('player-trigger') &&
+      getComputedStyle(button.querySelector('.trigger-label')).display === 'none' && getComputedStyle(button.querySelector('.trigger-count')).display === 'none'),
+      'Toolbar position setting immediately switches the page to an icon-only floating button');
+    await page.reload();
+    await page.locator('#swh-root .trigger.icon-trigger').waitFor();
+    check(await page.evaluate(() => localStorage.getItem('spotify-web-local-queue-history-v1-position')) === 'floating', 'Button position survives a real Spotify-tab reload');
+    await popup.reload();
+    await popup.waitForFunction(() => document.querySelector('#position').value === 'floating' && document.querySelector('#connection').hidden);
+    check(true, 'Reopened toolbar popup restores the saved position');
+    await popup.locator('#options').click();
+    if (process.env.PLACEMENT_CAPTURE_DIR) await popup.locator('.panel').screenshot({
+      path: require('node:path').join(process.env.PLACEMENT_CAPTURE_DIR, 'popup-position-settings.png')
+    });
+    await popup.locator('#position').selectOption('header');
+    await page.locator('#swh-root .trigger.header-trigger').waitFor();
+    check(await page.locator('a[href="/download"]').isVisible() && await page.locator('header button').count() === 0,
+      'Top bar preference preserves Install App and keeps the trigger outside Spotify’s header DOM');
+    await page.getByRole('button', { name: 'History 1', exact: true }).click();
+    await page.locator('#swh-root .settings-toggle').click();
+    await page.getByRole('combobox', { name: 'Button position' }).selectOption('player');
+    await popup.waitForFunction(() => document.querySelector('#position').value === 'player');
+    check(await page.evaluate(() => localStorage.getItem('spotify-web-local-queue-history-v1-position')) === 'player',
+      'In-page position changes persist and synchronize back to the toolbar popup');
+    await page.getByRole('button', { name: 'History 1', exact: true }).click();
     const downloadPromise = popup.waitForEvent('download');
     await popup.getByRole('button', { name: 'Export', exact: true }).click();
     check((await downloadPromise).suggestedFilename().endsWith('.json'), 'Toolbar export downloads a JSON backup');
@@ -178,6 +205,11 @@ module.exports = async function verifyExtension(chromium, extensionPath, executa
       await localizedPopup.locator('#options').click();
       check(await localizedPopup.locator('option[value="200"]').textContent() === limit,
         `${language}: popup settings are translated`);
+      check(await localizedPopup.locator('#position option').allTextContents().then(labels => labels.join('|') ===
+        (language==='pt-BR'?'Barra do player|Botão flutuante|Barra superior':'Barra de reproducción|Botón flotante|Barra superior')),
+        `${language}: all three button positions are translated`);
+      check(await localizedPopup.locator('.settings').evaluate(element=>element.scrollWidth<=element.clientWidth),
+        `${language}: position settings fit without horizontal overflow`);
       await localizedPopup.locator('.more-action').click();
       check(await localizedPopup.locator('.row-actions button').first().textContent() === queue,
         `${language}: popup Queue label is translated`);

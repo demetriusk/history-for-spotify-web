@@ -10,11 +10,11 @@ for (const attribute of ['title', 'aria-label', 'placeholder']) {
   }
 }
 
-const ui = Object.fromEntries(['count', 'options', 'settings', 'limit', 'clear', 'close', 'export', 'import', 'file',
+const ui = Object.fromEntries(['count', 'options', 'settings', 'limit', 'position', 'clear', 'close', 'export', 'import', 'file',
   'search', 'entries', 'connection', 'connection-message', 'open', 'reload', 'status', 'back', 'forward']
   .map(id => [id, document.getElementById(id)]));
 let tab = null;
-let snapshot = { history: [], limit: 50 };
+let snapshot = { history: [], limit: 50, position: 'player' };
 let busy = false;
 
 function make(tag, className, text) {
@@ -58,7 +58,7 @@ function disconnected(message, canReload = false) {
   ui.open.hidden = canReload;
   ui.entries.replaceChildren();
   ui.status.textContent = message;
-  for (const id of ['clear', 'export', 'import', 'limit', 'back', 'forward', 'search']) ui[id].disabled = true;
+  for (const id of ['clear', 'export', 'import', 'limit', 'position', 'back', 'forward', 'search']) ui[id].disabled = true;
 }
 
 async function refresh() {
@@ -75,7 +75,7 @@ async function refresh() {
     snapshot = reply.snapshot;
     const reconnecting = !ui.connection.hidden;
     ui.connection.hidden = true;
-    for (const id of ['clear', 'export', 'import', 'limit', 'back', 'forward', 'search']) ui[id].disabled = false;
+    for (const id of ['clear', 'export', 'import', 'limit', 'position', 'back', 'forward', 'search']) ui[id].disabled = false;
     if (changed || reconnecting || !ui.entries.childElementCount) render();
     if (reconnecting || ui.status.textContent === t('Connecting to Spotify…')) ui.status.textContent = t('Connected to Spotify. History stays in this browser.');
   } catch (error) {
@@ -106,7 +106,8 @@ async function act(action, data = {}, message = '') {
 function render() {
   ui.count.textContent = snapshot.history.length || '';
   ui.limit.value = String(snapshot.limit);
-  for (const id of ['clear', 'export', 'import', 'limit', 'back', 'forward']) ui[id].disabled = busy;
+  ui.position.value = snapshot.position || 'player';
+  for (const id of ['clear', 'export', 'import', 'limit', 'position', 'back', 'forward']) ui[id].disabled = busy;
   ui.entries.replaceChildren();
   const query = ui.search.value.trim().toLocaleLowerCase();
   const entries = snapshot.history.filter(entry => `${entry.name} ${entry.artist}`.toLocaleLowerCase().includes(query));
@@ -228,6 +229,7 @@ ui.limit.addEventListener('change', () => {
   }
   act('limit', { limit, confirmed: true });
 });
+ui.position.addEventListener('change', () => act('position', { position: ui.position.value }));
 ui.export.addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, tracks: snapshot.history }, null, 2)], { type: 'application/json' }));
   const link = make('a');

@@ -1,8 +1,10 @@
 # History for Spotify Web
 
+[English](README.md) · [Português (Brasil)](README.pt-BR.md) · [Español](README.es.md)
+
 Good song. Gone already. What was it?
 
-History for Spotify Web adds a searchable listening history to Spotify's web player. Open **History** in the top bar or click the browser toolbar icon to find a track, copy its link, or add it back to the queue through Spotify's own controls. Both views use the same history.
+History for Spotify Web adds a searchable listening history to Spotify's web player. Click the history clock beside the player utilities or the browser toolbar icon to find a track, copy its link, or add it back to the queue through Spotify's own controls. Both views use the same history.
 
 ![History panel and track actions](store/assets/01-history.png)
 
@@ -24,19 +26,23 @@ The web player can leave you without visible Back and Forward buttons, especiall
 
 There are [Mac memory-use reports](https://community.spotify.com/forum/en/discussion/4886018/spotify-has-a-memory-leak-mac-desktop) on Spotify's forum. The desktop cache can be [cleared or moved](https://support.spotify.com/us/article/storage-information/). Spotify outlines the web player's [discovery and playlist features here](https://newsroom.spotify.com/2021-03-25/introducing-a-new-spotify-experience-across-desktop-app-and-web-player/).
 
-## Install without the Chrome Web Store
+## Install
 
-The store version is awaiting review. For personal testing, you can load the extension from GitHub. No build tools needed.
+[Get it from the Chrome Web Store](https://chromewebstore.google.com/detail/mankfcbajkkgnahooffhiookcbbicohn). After installing, reload Spotify. You can unpin the toolbar icon; History also lives beside Spotify’s player utilities. History options lets you choose Player bar, Floating button (icon only), or Top bar. Player bar is the default; a floating clock appears when the selected area has no safe space.
+
+### Install without the Chrome Web Store
+
+For personal testing, you can load the extension from GitHub. No build tools needed.
 
 1. [Download the source ZIP](https://github.com/demetriusk/history-for-spotify-web/archive/refs/heads/main.zip) and extract it into a folder you will keep.
 2. Open `chrome://extensions` in Chrome or `vivaldi://extensions` in Vivaldi, then enable **Developer mode**.
 3. Click **Load unpacked** and select the `extension` folder inside the extracted project. It contains `manifest.json`.
 4. Disable the matching Tampermonkey script if you use it, then reload Spotify's tab or PWA with **Ctrl+R** or **⌘R** on Mac.
-5. Play a song, then move to another. Open **History** in Spotify's top bar or click the extension's toolbar icon.
+5. Play a song, then move to another. Click the history clock in Spotify’s bottom bar, the floating clock, or the extension’s toolbar icon. You can also choose **Top bar** in History options.
 
 Keep the extracted folder in place; the browser loads the extension from it. Local installs don't receive automatic store updates. To update, download the source again, replace the files in the same folder, click the extension's reload button on the Extensions page, then reload Spotify.
 
-Once the store version is available, disable the local copy before installing it. Your history stays in Spotify's site storage in the same browser profile.
+Disable the local copy before installing the store version. Your history stays in Spotify's site storage in the same browser profile.
 
 The extension uses Manifest V3 and requires Chromium 114 or later. Chrome is the store target. Chromium browsers that support Chrome extensions, including Vivaldi, can load the same package; browser-specific PWA behaviour may vary. Browser extensions don't add features to Spotify's desktop or mobile apps.
 
@@ -91,6 +97,8 @@ The tests use local Spotify-shaped fixtures. The extension smoke test loads the 
 Open an issue with the browser version, Spotify interface language, and steps to reproduce the problem. Remove account details before attaching screenshots or logs. Never include access tokens, cookies, API keys, or a private history export.
 
 The Chrome Web Store copy, privacy disclosures, and reviewer instructions are in [`store/`](store/). Screenshot sources and the icon/mesh artwork are included so the store assets can be reproduced. Preview them in [`store/preview.html`](store/preview.html).
+
+Store descriptions: [English](store/LISTING.md) · [Português (Brasil)](store/LISTING.pt-BR.md) · [Español](store/LISTING.es.md).
 
 ## License and affiliation
 

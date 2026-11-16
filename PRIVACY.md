@@ -2,13 +2,13 @@
 
 History for Spotify Web
 
-Last updated: 18 October 2026
+Last updated: 16 November 2026
 
 ## What the extension reads
 
 The extension reads the currently displayed track in Spotify's web player: track title, artist names, artwork URL, and a track ID or link when available. It adds local timestamps when it detects the track and when Spotify moves to another track.
 
-This information provides the listening history displayed in the extension. The selected history limit is also stored. The extension operates only on `https://open.spotify.com/`.
+This information provides the listening history displayed in the extension. The selected history limit and History button position are also stored. The extension operates only on `https://open.spotify.com/`.
 
 It doesn't read authentication cookies, passwords, account tokens, payment details, or pages outside Spotify's web player. It doesn't use Chrome's browser-history API.
 
@@ -28,7 +28,7 @@ Choosing Copy link writes the selected Spotify URL to the clipboard. The extensi
 
 The extension keeps the newest 50, 200, or 500 recorded plays, according to your selected limit. Older records are removed as the limit is reached. History isn't synchronized between browsers or browser profiles.
 
-Use Remove to delete an individual record or Clear to delete all saved history. Clearing Spotify's site data also deletes the history and limit setting. Uninstalling the extension alone may leave this site data in the browser.
+Use Remove to delete an individual record or Clear to delete all saved history. Clearing Spotify's site data also deletes the history, limit setting, and button position. Uninstalling the extension alone may leave this site data in the browser.
 
 ## Files you choose
 

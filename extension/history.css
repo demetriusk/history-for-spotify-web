@@ -65,6 +65,33 @@
         color: #f6f6f6;
       }
 
+      .trigger[hidden] { display: none; }
+      .history-icon { display: none; }
+      .trigger.icon-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        border-radius: 50%;
+      }
+      .icon-trigger .history-icon { display: block; width: 20px; height: 20px; }
+      .icon-trigger .trigger-label, .icon-trigger .trigger-count { display: none; }
+      .trigger.player-trigger, .trigger.header-trigger {
+        border-radius: 4px;
+        background: transparent;
+        color: var(--text-subdued, #b3b3b3);
+        box-shadow: none;
+      }
+      .trigger.player-trigger:hover { color: var(--text-base, #fff); outline: none; }
+      .trigger.player-trigger:focus-visible { outline: 2px solid var(--text-base, #fff); outline-offset: 2px; }
+      .trigger.player-trigger.active { color: var(--text-bright-accent, #1ed760); }
+      .player-trigger.active::after {
+        content: ''; position: absolute; bottom: 1px; width: 4px; height: 4px;
+        border-radius: 50%; background: currentColor;
+      }
+
       .panel {
         position: fixed;
         right: 20px;
@@ -133,6 +160,8 @@
       .settings-toggle svg { width: 16px; height: 16px; }
       .settings-toggle[aria-expanded="true"] { color: #fff; background: #333; }
       .settings-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+      .position-setting { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+      .position-setting select { min-width: 0; max-width: 100%; }
       .settings-controls label { display: inline-flex; align-items: center; gap: 8px; }
       .settings select { background: #242424; color: #fff; padding: 6px 8px; border: 1px solid #454545; border-radius: 4px; font: inherit; }
       .day { margin: 8px 7px 4px; color: #b3b3b3; font-size: 11px; font-weight: 600; }

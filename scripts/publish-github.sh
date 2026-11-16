@@ -3,6 +3,11 @@
 set -eu
 cd "$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 repo='demetriusk/history-for-spotify-web'
+version=$(python3 -c 'import json; print(json.load(open("extension/manifest.json"))["version"])')
+package="dist/history-for-spotify-web-$version.zip"
+notes=$(mktemp)
+trap 'rm -f "$notes"' EXIT HUP INT TERM
+awk 'NR == 1 { next } /^# / { exit } { print }' docs/RELEASE-NOTES.md > "$notes"
 
 python3 scripts/build.py
 python3 scripts/check.py
@@ -28,10 +33,10 @@ if git remote get-url origin >/dev/null 2>&1; then
   esac
 fi
 
-git add .gitignore .github README.md PRIVACY.md LICENSE CONTRIBUTING.md SECURITY.md package.json \
+git add .gitignore .github README.md README.es.md README.pt-BR.md PRIVACY.md LICENSE CONTRIBUTING.md SECURITY.md package.json \
   spotify-queue-history.user.js 'Spotify Web - Queue History-0.1.0.txt' extension scripts tests assets store docs
 if ! git diff --cached --quiet; then
-  git commit -m 'Add toolbar history popup and update extension copy'
+  git commit -m "Release $version with configurable History positions"
 fi
 if gh repo view "$repo" --json nameWithOwner >/dev/null 2>&1; then
   visibility=$(gh repo view "$repo" --json visibility --jq .visibility)
@@ -46,8 +51,8 @@ if ! git remote get-url origin >/dev/null 2>&1; then
   git remote add origin "https://github.com/$repo.git"
 fi
 git -c 'credential.helper=!gh auth git-credential' push -u origin HEAD:main
-if ! gh release view v0.3.2 --repo "$repo" >/dev/null 2>&1; then
-  gh release create v0.3.2 dist/history-for-spotify-web-0.3.2.zip --repo "$repo" \
-    --title 'History for Spotify Web 0.3.2' --notes-file docs/RELEASE-NOTES.md
+if ! gh release view "v$version" --repo "$repo" >/dev/null 2>&1; then
+  gh release create "v$version" "$package" --repo "$repo" --target "$(git rev-parse HEAD)" \
+    --title "History for Spotify Web $version" --notes-file "$notes"
 fi
 printf 'Repository: https://github.com/%s\n' "$repo"

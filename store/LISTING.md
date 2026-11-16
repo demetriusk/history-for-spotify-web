@@ -1,5 +1,7 @@
 # Chrome Web Store listing
 
+[English](LISTING.md) · [Português (Brasil)](LISTING.pt-BR.md) · [Español](LISTING.es.md)
+
 ## Name
 
 History for Spotify Web
@@ -12,7 +14,7 @@ Find tracks you played in Spotify's web player. Search local history, copy links
 
 Good song. Gone already. What was it?
 
-History for Spotify Web keeps a searchable list of the tracks you leave behind. Open it in Spotify's top bar or from your browser toolbar. Both views share the same history.
+History for Spotify Web keeps a searchable list of the tracks you leave behind. Open it from the clock beside Spotify’s player controls or from your browser toolbar. In History options, choose Player bar, an icon-only Floating button, or Top bar. Both views share the same history.
 
 • Find a song by title or artist.
 • Open its menu to queue it again, copy its link, or remove the entry.

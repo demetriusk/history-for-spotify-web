@@ -3,6 +3,7 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const verifyHistory = require('./queue-history.browser.cjs');
 const verifyExtension = require('./extension.browser.cjs');
+const verifyPlacement = require('./player-placement.browser.cjs');
 
 (async () => {
   const root = path.resolve(__dirname, '..');
@@ -13,6 +14,7 @@ const verifyExtension = require('./extension.browser.cjs');
     const page = await browser.newPage({ viewport: { width: 1200, height: 682 } });
     results = await verifyHistory(page, fs.readFileSync(path.join(root, 'extension/history.js'), 'utf8'),
       fs.readFileSync(path.join(root, 'Spotify Web - Queue History-0.1.0.txt'), 'utf8'));
+    results.push(...await verifyPlacement(browser, fs.readFileSync(path.join(root, 'extension/history.js'), 'utf8'), process.env.PLACEMENT_CAPTURE_DIR));
   } finally {
     await browser.close();
   }

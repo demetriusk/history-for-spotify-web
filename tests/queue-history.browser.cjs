@@ -125,7 +125,7 @@ module.exports = async function verifyQueueHistory(page, source, original) {
   await boot(source, absolute(fixture('Second', 'Track2')), saved);
   check((await shadowText('.trigger')) === 'History 1', 'Saved history is restored on reload');
   check(await page.getByRole('button', { name: 'History 1', exact: true }).evaluate(button => {
-    const count = button.querySelector('span');
+    const count = button.querySelector('.trigger-count');
     return !/[()]/.test(button.textContent) && count?.textContent === '1' && getComputedStyle(count).color === 'rgb(30, 215, 96)';
   }), 'History count is green and has no brackets');
   for (let index = 0; index < 55; index++) await change(fixture(`Song ${index}`, `Track${index}`));
@@ -145,19 +145,11 @@ module.exports = async function verifyQueueHistory(page, source, original) {
     footer { position: fixed; bottom: 0; left: 0; }
   </style><header><a class="spotify-logo" href="/" aria-label="Spotify">S</a><a class="e-10860-legacy-button encore-text-body-small-bold e-10860-button--leading" data-encore-id="buttonTertiary" href="/download"><span>Install App</span></a><span>Notifications</span><span>Profile</span></header>`;
   await boot(source, header + absolute(fixture('First', 'Track1')));
-  check(await page.getByRole('button', { name: 'History', exact: true }).textContent() === 'History', 'History occupies the Install App position in the header');
-  check(await page.locator('a[href="/download"]').isHidden(), 'Original Install App link is hidden');
-  check(await page.getByRole('button', { name: 'History', exact: true }).getAttribute('data-encore-id') === 'buttonTertiary', 'Header button reuses Spotify Encore styling');
+  check(await page.locator('a[href="/download"]').isVisible(), 'Install App remains available in Spotify’s header');
+  check(await page.locator('header button').count() === 0 &&
+    await page.locator('#swh-root .trigger').isVisible(), 'History stays outside Spotify’s account header');
   check(await page.getByRole('button', { name: 'Back', exact: true }).count() === 1 &&
     await page.getByRole('button', { name: 'Forward', exact: true }).count() === 1, 'Header includes Back and Forward controls');
-  check(await page.evaluate(() => {
-    const logo = document.querySelector('.spotify-logo').getBoundingClientRect();
-    const shadow = document.querySelector('#swh-root').shadowRoot;
-    const navigation = shadow.querySelector('.navigation').getBoundingClientRect();
-    const history = [...document.querySelectorAll('header button')].find(button => button.textContent.startsWith('History')).getBoundingClientRect();
-    return navigation.left === logo.right + 16 && navigation.right < history.left &&
-      navigation.top + navigation.height / 2 === logo.top + logo.height / 2;
-  }), 'Back and Forward sit beside the top-left logo, separate from History');
   for (const width of [1200, 600]) {
     await page.setViewportSize({ width, height: 682 });
     await page.evaluate(() => window.dispatchEvent(new Event('resize')));
@@ -169,74 +161,23 @@ module.exports = async function verifyQueueHistory(page, source, original) {
           Math.abs(a.top + a.height / 2 - b.top - b.height / 2) < 0.1;
       })), `Visible navigation uses centered 16px icons with equal padding at ${width}px`);
   }
-  await page.setViewportSize({ width: 1200, height: 682 });
-  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
-  await change(fixture('Second', 'Track2'));
-  await page.getByRole('button', { name: 'History 1', exact: true }).click();
-  const belowHeader = await page.evaluate(() => {
-    const trigger = [...document.querySelectorAll('header button')].find(button => button.textContent.startsWith('History')).getBoundingClientRect();
-    const panel = document.querySelector('#swh-root').shadowRoot.querySelector('.panel').getBoundingClientRect();
-    return panel.top >= trigger.bottom && panel.right <= innerWidth && panel.left >= 0;
-  });
-  check(belowHeader, 'History panel opens beneath the header button inside the viewport');
-  check(await page.getByRole('button', { name: 'History 1', exact: true }).evaluate(button =>
-    getComputedStyle(button).color !== 'rgb(30, 215, 96)' &&
-    getComputedStyle(button.querySelector('span')).color === 'rgb(30, 215, 96)'),
-    'Only the counter stays green when History is open');
-  await page.setViewportSize({ width: 420, height: 700 });
-  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
-  check(await page.evaluate(() => {
-    const panel = document.querySelector('#swh-root').shadowRoot.querySelector('.panel').getBoundingClientRect();
-    return panel.left >= 0 && panel.right <= innerWidth;
-  }), 'Header panel fits a narrow PWA window');
-  check(await page.evaluate(() => {
-    const nav = document.querySelector('#swh-root').shadowRoot.querySelector('.navigation').getBoundingClientRect();
-    const history = [...document.querySelectorAll('header button')].find(button => button.textContent.startsWith('History')).getBoundingClientRect();
-    return nav.right <= history.left;
-  }), 'Navigation and History do not overlap in a narrow PWA window');
   await page.setViewportSize({ width: 360, height: 700 });
   await page.evaluate(() => window.dispatchEvent(new Event('resize')));
   check(await page.locator('#swh-root .navigation').isHidden(),
-    'Navigation hides when the header has insufficient space');
+    'Navigation hides when Spotify’s header has insufficient space');
   await page.setViewportSize({ width: 1200, height: 682 });
   await page.evaluate(() => window.dispatchEvent(new Event('resize')));
   check(await page.locator('#swh-root .navigation').isVisible(),
-    'Navigation returns when the header has space again');
-
+    'Navigation returns when Spotify’s header has space again');
   await page.evaluate(() => {
-    document.querySelector('a[href="/download"]').remove();
-    document.querySelector('header').lastElementChild.setAttribute('data-testid', 'user-widget-link');
+    document.querySelector('header').innerHTML = '<a class="spotify-logo" href="/" aria-label="Spotify">S</a><a href="/download">Install App</a>';
     window.__historyTick();
   });
-  for (const width of [1200, 420, 360]) {
-    await page.setViewportSize({ width, height: 700 });
-    await page.evaluate(() => window.dispatchEvent(new Event('resize')));
-    check(await page.getByRole('button', { name: 'History 1', exact: true }).evaluate(button => {
-      const a = button.getBoundingClientRect();
-      const b = document.querySelector('[data-testid="user-widget-link"]').getBoundingClientRect();
-      return a.width > 0 && a.top >= 0 && a.bottom <= 48 && a.left >= 0 && a.right <= b.left;
-    }), `History stays in the top bar without Install App at ${width}px`);
-  }
-  await page.evaluate(() => {
-    const wrapper = document.createElement('div');
-    wrapper.style.display = 'none';
-    wrapper.innerHTML = '<a href="/download">Install App</a>';
-    document.querySelector('header').prepend(wrapper);
-    window.__historyTick();
-  });
-  check(await page.getByRole('button', { name: 'History 1', exact: true }).isVisible(),
-    'A hidden Install App container cannot hide History');
-  await page.setViewportSize({ width: 1200, height: 682 });
-
-  await page.evaluate(() => {
-    document.querySelector('header').innerHTML = '<a class="spotify-logo" href="/" aria-label="Spotify">S</a><a class="e-10860-legacy-button" href="/download">Install App</a>';
-    window.__historyTick();
-  });
-  check(await page.locator('header button').count() === 1 && await page.getByRole('button', { name: 'Back', exact: true }).isVisible(),
-    'History and navigation controls recover when Spotify replaces the header');
+  check(await page.locator('header button').count() === 0 && await page.getByRole('button', { name: 'Back', exact: true }).isVisible(),
+    'Navigation recovers after Spotify replaces its header without injecting History there');
   await page.evaluate(() => { document.querySelector('header').remove(); window.__historyTick(); });
-  check(await page.locator('#swh-root').getByRole('button', { name: 'History 1', exact: true }).count() === 1,
-    'Floating button remains available when the header install link is absent');
+  check(await page.locator('#swh-root .trigger').count() === 1,
+    'History remains available without Spotify’s header');
 
   // Supply the Spotify origin locally; these requests never reach Spotify.
   const route = request => request.fulfill({ contentType: 'text/html', body: '<main id="route">Home</main>' });
@@ -558,10 +499,12 @@ module.exports = async function verifyQueueHistory(page, source, original) {
   const dragUrl = page.url();
   await page.mouse.move(grab.x, grab.y);
   await page.mouse.down();
-  await page.mouse.move(grab.x + 24, grab.y + 90, { steps: 8 });
+  await page.mouse.move(grab.x + 24, grab.y - 90, { steps: 8 });
   await page.mouse.up();
   const afterMove = await historyRoot.locator('.panel').boundingBox();
-  check(Math.abs(afterMove.x - beforeMove.x - 24) < 1 && Math.abs(afterMove.y - beforeMove.y - 90) < 1 && page.url() === dragUrl,
+  const expectedX = Math.max(8, Math.min(420 - beforeMove.width - 8, beforeMove.x + 24));
+  const expectedY = Math.max(8, beforeMove.y - 90);
+  check(Math.abs(afterMove.x - expectedX) < 1 && Math.abs(afterMove.y - expectedY) < 1 && page.url() === dragUrl,
     'Dragging the header moves the history panel without navigating');
   await page.evaluate(() => window.__historyTick());
   const afterTick = await historyRoot.locator('.panel').boundingBox();

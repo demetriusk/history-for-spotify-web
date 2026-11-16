@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Spotify Web - Queue History
 // @namespace    local.spotify.queue-history
-// @version      0.3.2
-// @description  Adds Back/Forward controls and local track history in place of Spotify's Install App button.
+// @version      0.3.3
+// @description  Adds Back/Forward controls and local track history beside Spotify's player utilities.
 // @match        https://open.spotify.com/*
 // @run-at       document-idle
 // @grant        none
@@ -33,6 +33,11 @@
         "Delete locally recorded history": "Apagar o histórico salvo neste navegador",
         "Clear Spotify Web queue history saved in this browser?": "Apagar o histórico do Spotify Web salvo neste navegador?",
         "History options": "Opções do histórico",
+        "Button position": "Posição do botão",
+        "Player bar": "Barra do player",
+        "Floating button": "Botão flutuante",
+        "Top bar": "Barra superior",
+        "Choose a button position.": "Escolha uma posição para o botão.",
         "Keep": "Manter",
         "History limit": "Limite do histórico",
         "{count} tracks": "{count} músicas",
@@ -109,6 +114,11 @@
         "Delete locally recorded history": "Borrar el historial guardado en este navegador",
         "Clear Spotify Web queue history saved in this browser?": "¿Borrar el historial de Spotify Web guardado en este navegador?",
         "History options": "Opciones del historial",
+        "Button position": "Posición del botón",
+        "Player bar": "Barra de reproducción",
+        "Floating button": "Botón flotante",
+        "Top bar": "Barra superior",
+        "Choose a button position.": "Elige una posición para el botón.",
         "Keep": "Guardar",
         "History limit": "Límite del historial",
         "{count} tracks": "{count} canciones",
@@ -179,14 +189,16 @@
 
   const KEY = 'spotify-web-local-queue-history-v1';
   const SETTINGS_KEY = `${KEY}-limit`;
+  const POSITION_KEY = `${KEY}-position`;
   let limit = loadLimit();
+  let position = loadPosition();
   const ID = 'swh-root';
   let history = loadHistory();
   let current = null;
   let opened = false;
   let panelPosition = null;
   let root, button, panel, list, hint, backButton, forwardButton, navigation, queueLoading;
-  let installButton, installDisplay, search;
+  let search, positionSelect;
   let draggedTrack = { signature: '', id: null };
   let queueBusy = false;
   let queueStatus = '';
@@ -199,6 +211,25 @@
     } catch {
       return 50;
     }
+  }
+
+  function loadPosition() {
+    try {
+      const value = localStorage.getItem(POSITION_KEY);
+      return ['player', 'floating', 'header'].includes(value) ? value : 'player';
+    } catch {
+      return 'player';
+    }
+  }
+
+  function setPosition(value) {
+    if (!['player', 'floating', 'header'].includes(value)) throw new Error(t('Choose a button position.'));
+    localStorage.setItem(POSITION_KEY, value);
+    position = value;
+    positionSelect.value = value;
+    panelPosition = null;
+    panel.style.left = 'auto';
+    ensureButtonPlacement();
   }
 
   function loadHistory() {
@@ -458,6 +489,33 @@
         color: #f6f6f6;
       }
 
+      .trigger[hidden] { display: none; }
+      .history-icon { display: none; }
+      .trigger.icon-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        border-radius: 50%;
+      }
+      .icon-trigger .history-icon { display: block; width: 20px; height: 20px; }
+      .icon-trigger .trigger-label, .icon-trigger .trigger-count { display: none; }
+      .trigger.player-trigger, .trigger.header-trigger {
+        border-radius: 4px;
+        background: transparent;
+        color: var(--text-subdued, #b3b3b3);
+        box-shadow: none;
+      }
+      .trigger.player-trigger:hover { color: var(--text-base, #fff); outline: none; }
+      .trigger.player-trigger:focus-visible { outline: 2px solid var(--text-base, #fff); outline-offset: 2px; }
+      .trigger.player-trigger.active { color: var(--text-bright-accent, #1ed760); }
+      .player-trigger.active::after {
+        content: ''; position: absolute; bottom: 1px; width: 4px; height: 4px;
+        border-radius: 50%; background: currentColor;
+      }
+
       .panel {
         position: fixed;
         right: 20px;
@@ -526,6 +584,8 @@
       .settings-toggle svg { width: 16px; height: 16px; }
       .settings-toggle[aria-expanded="true"] { color: #fff; background: #333; }
       .settings-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+      .position-setting { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+      .position-setting select { min-width: 0; max-width: 100%; }
       .settings-controls label { display: inline-flex; align-items: center; gap: 8px; }
       .settings select { background: #242424; color: #fff; padding: 6px 8px; border: 1px solid #454545; border-radius: 4px; font: inherit; }
       .day { margin: 8px 7px 4px; color: #b3b3b3; font-size: 11px; font-weight: 600; }
@@ -668,7 +728,7 @@
     button.type = 'button';
     button.title = t('Previously played Spotify Web tracks');
     button.setAttribute('aria-expanded', 'false');
-    button.addEventListener('click', () => setOpen(!opened));
+    button.addEventListener('click', event => setOpen(!opened, event.detail === 0));
 
     backButton = make('button', 'nav-button');
     backButton.type = 'button';
@@ -773,6 +833,19 @@
     const settings = make('div', 'settings');
     settings.hidden = true;
     settings.id = 'history-options';
+    const positionLabel = make('label', 'position-setting');
+    positionLabel.append(make('span', null, t('Button position')));
+    positionSelect = make('select');
+    positionSelect.setAttribute('aria-label', t('Button position'));
+    for (const [value, label] of [['player', t('Player bar')], ['floating', t('Floating button')], ['header', t('Top bar')]]) {
+      const option = make('option', null, label);
+      option.value = value;
+      positionSelect.append(option);
+    }
+    positionSelect.value = position;
+    positionSelect.addEventListener('change', () => setPosition(positionSelect.value));
+    positionLabel.append(positionSelect);
+    settings.append(positionLabel);
     const settingsToggle = make('button', 'settings-toggle');
     settingsToggle.type = 'button';
     settingsToggle.title = t('History options');
@@ -805,7 +878,7 @@
     });
     const controls = make('div', 'settings-controls');
     const label = make('label', null, t('Keep'));
-    const capacity = make('select');
+    const capacity = make('select', 'history-limit');
     capacity.setAttribute('aria-label', t('History limit'));
     for (const value of [50, 200, 500]) {
       const option = make('option', null, t('{count} tracks', { count: value }));
@@ -859,21 +932,34 @@
     });
     window.addEventListener('resize', ensureButtonPlacement);
 
-    ensureButtonPlacement();
     updateButton();
+    ensureButtonPlacement();
     renderList();
   }
 
   function updateButton() {
     if (button) {
-      button.replaceChildren(document.createTextNode(t('History')));
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      icon.classList.add('history-icon');
+      icon.setAttribute('viewBox', '0 0 24 24');
+      icon.setAttribute('aria-hidden', 'true');
+      icon.setAttribute('fill', 'none');
+      icon.setAttribute('stroke', 'currentColor');
+      icon.setAttribute('stroke-width', '1.8');
+      icon.setAttribute('stroke-linecap', 'round');
+      icon.setAttribute('stroke-linejoin', 'round');
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M3 10a9 9 0 1 1 1.7 7.3M3 4v6h6M12 7v5l3 2');
+      icon.append(path);
+      button.replaceChildren(icon, make('span', 'trigger-label', t('History')));
       button.setAttribute('aria-label', `${t('History')}${history.length ? ` ${history.length}` : ''}`);
       if (history.length) {
-        const count = make('span', null, String(history.length));
+        const count = make('span', 'trigger-count', String(history.length));
         count.style.color = 'var(--text-bright-accent, #1ed760)';
         count.style.marginInlineStart = '6px';
         button.append(document.createTextNode(' '), count);
       }
+      if (position === 'header') ensureButtonPlacement();
     }
   }
 
@@ -897,7 +983,7 @@
       const trigger = button.getBoundingClientRect();
       navigation.hidden = nav.right + 8 > trigger.left && nav.left < trigger.right &&
         nav.top < trigger.bottom && nav.bottom > trigger.top;
-      const header = button.closest('[data-testid="global-nav"], header, [role="banner"]');
+      const header = document.querySelector('[data-testid="global-nav"], header, [role="banner"]');
       if (header && !navigation.hidden) {
         navigation.hidden = [...header.children, ...header.querySelectorAll('a, button, input, [role="button"]')]
           .filter(element => !element.contains(button))
@@ -926,76 +1012,90 @@
       navigation.style.top = `${rect.top + (rect.height - navigation.offsetHeight) / 2}px`;
     }
 
-    const install = document.querySelector('a[href="/download"]');
-    if (installButton) installButton.style.display = installDisplay;
-    if (installButton !== install) {
-      installButton = install;
-      installDisplay = install?.style.display;
-    }
-    const visible = element => element?.getBoundingClientRect().width > 0 &&
-      element.getBoundingClientRect().height > 0 && getComputedStyle(element).visibility !== 'hidden';
-    const header = [...document.querySelectorAll('[data-testid="global-nav"], header, [role="banner"]')]
-      .find(element => visible(element) && element.getBoundingClientRect().top < 80);
-    const profile = document.querySelector('[data-testid="user-widget-link"]');
-    const anchor = visible(install) ? install : visible(profile) ? profile :
-      [...(header?.children || [])].reverse().find(element => element !== button && visible(element));
-    if (anchor) {
-      button.className = (install?.className || '').split(/\s+/)
-        .filter(name => !name.endsWith('--leading')).join(' ');
-      button.setAttribute('data-encore-id', 'buttonTertiary');
-      button.style.cssText = 'display: inline-flex; align-items: center; flex-shrink: 0; white-space: nowrap; border: 0; background: transparent; color: var(--text-subdued, #b3b3b3); padding: 8px 12px; cursor: pointer; font: 700 12px var(--encore-body-font-stack, system-ui, sans-serif);';
-      if (button.nextElementSibling !== anchor) anchor.before(button);
-      if (install) install.style.display = 'none';
-
-      const rect = button.getBoundingClientRect();
-      panel.style.top = `${rect.bottom + 8}px`;
-      panel.style.bottom = 'auto';
-      panel.style.right = `${Math.max(8, Math.min(innerWidth - panel.offsetWidth - 8, innerWidth - rect.right))}px`;
-      panel.style.maxHeight = `${Math.max(0, Math.min(600, innerHeight - rect.bottom - 16))}px`;
+    const visible = element => {
+      if (!element) return false;
+      const style = getComputedStyle(element);
+      if (style.visibility === 'hidden' || style.opacity === '0') return false;
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < innerHeight;
+    };
+    const queue = document.querySelector('[data-testid="control-button-queue"]');
+    const footer = queue?.closest('[data-testid="now-playing-bar"], footer') ||
+      document.querySelector('[data-testid="now-playing-bar"]');
+    const footerBounds = visible(footer) ? footer.getBoundingClientRect() : null;
+    const footerRect = footerBounds?.top >= innerHeight / 2 ? footerBounds : null;
+    button.hidden = Boolean(document.fullscreenElement && !footerRect);
+    if (button.hidden) {
+      if (opened) setOpen(false);
       return;
     }
 
-    if (button.getRootNode() !== root.shadowRoot) {
-      root.shadowRoot.insertBefore(button, panel);
-      button.className = `trigger${opened ? ' active' : ''}`;
-      button.removeAttribute('data-encore-id');
-      button.style.cssText = '';
-      panel.style.cssText = '';
+    button.classList.remove('player-trigger', 'header-trigger');
+    button.classList.add('icon-trigger');
+    if (position === 'header') {
+      const header = [...document.querySelectorAll('[data-testid="global-nav"], header, [role="banner"]')]
+        .find(element => visible(element) && element.getBoundingClientRect().top < 80);
+      const anchor = header?.querySelector('a[href="/download"]');
+      const profile = header?.querySelector('[data-testid="user-widget-link"]');
+      const target = visible(anchor) ? anchor : visible(profile) ? profile : null;
+      if (target) {
+        button.classList.remove('icon-trigger');
+        button.classList.add('header-trigger');
+        const bounds = header.getBoundingClientRect();
+        const slot = findControlSlot(target, header, Math.ceil(button.getBoundingClientRect().width), 32, bounds.left + bounds.width / 2);
+        if (slot) {
+          Object.assign(button.style, { left: `${slot.left}px`, top: `${slot.top}px`, right: 'auto', bottom: 'auto' });
+          const rect = button.getBoundingClientRect();
+          Object.assign(panel.style, {
+            top: `${rect.bottom + 8}px`, bottom: 'auto',
+            right: `${Math.max(8, Math.min(innerWidth - Math.min(365, innerWidth - 40) - 8, innerWidth - rect.right))}px`,
+            maxHeight: `${Math.max(0, Math.min(600, (footerRect?.top ?? innerHeight) - rect.bottom - 16))}px`
+          });
+          return;
+        }
+        button.classList.remove('header-trigger');
+        button.classList.add('icon-trigger');
+      }
     }
 
-    if (logo) {
-      const rect = logo.getBoundingClientRect();
-      button.style.cssText = `top: ${rect.top}px; right: 16px; bottom: auto;`;
-      panel.style.top = `${rect.bottom + 8}px`;
-      panel.style.bottom = 'auto';
-      return;
+    let slot = null;
+    if (position === 'player' && footerRect && visible(queue)) {
+      const rect = queue.getBoundingClientRect();
+      slot = findControlSlot(queue, footer, 40, 40, Math.max(footerRect.left + footerRect.width / 2, rect.left - 200));
     }
+    button.classList.toggle('player-trigger', Boolean(slot));
+    const playerTop = footerRect ? Math.max(8, footerRect.top) : Math.max(48, innerHeight - 86);
+    button.style.left = slot ? `${slot.left}px` : 'auto';
+    button.style.top = slot ? `${slot.top}px` : 'auto';
+    button.style.right = slot ? 'auto' : '20px';
+    button.style.bottom = slot ? 'auto' : `${innerHeight - playerTop + 8}px`;
+    const rect = button.getBoundingClientRect();
+    const panelWidth = Math.min(365, innerWidth - 40);
+    const panelBottom = slot ? playerTop - 8 : Math.max(8, rect.top - 8);
+    panel.style.top = 'auto';
+    panel.style.bottom = `${innerHeight - panelBottom}px`;
+    panel.style.right = `${Math.max(8, Math.min(innerWidth - panelWidth - 8, innerWidth - rect.right))}px`;
+    panel.style.maxHeight = `${Math.max(0, Math.min(600, panelBottom - 8))}px`;
 
-    const queue = document.querySelector(
-      '[data-testid="control-button-queue"]'
-    );
-
-    if (!queue) {
-      button.style.left = 'auto';
-      button.style.top = 'auto';
-      button.style.right = '20px';
-      button.style.bottom = '94px';
-      return;
+    function findControlSlot(anchor, container, width, height, minimum) {
+      const rect = anchor.getBoundingClientRect(), bounds = container.getBoundingClientRect();
+      const top = rect.top + (rect.height - height) / 2;
+      const blockers = [...container.querySelectorAll(
+        'button, a, input, [role="button"], [role="slider"], [role="search"], [data-testid="now-playing-widget"], [data-testid="player-controls"], .player-controls'
+      )].filter(visible).map(element => element.getBoundingClientRect());
+      let left = rect.left - width - 8;
+      while (left >= minimum) {
+        const collisions = blockers.filter(block => left < block.right + 8 && left + width > block.left - 8 &&
+          top < block.bottom + 4 && top + height > block.top - 4);
+        if (!collisions.length) return top >= bounds.top && top + height <= bounds.bottom && left + width <= innerWidth - 8 ? { left, top } : null;
+        left = Math.min(...collisions.map(block => block.left)) - width - 8;
+      }
+      return null;
     }
-
-    const rect = queue.getBoundingClientRect();
-    const buttonWidth = button.offsetWidth || 90;
-
-    button.style.left = `${
-      Math.max(8, Math.min(innerWidth - buttonWidth - 8, rect.right - buttonWidth))
-    }px`;
-
-    button.style.top = `${Math.max(8, rect.top - 41)}px`;
-    button.style.right = 'auto';
-    button.style.bottom = 'auto';
   }
 
-  function setOpen(value) {
+  function setOpen(value, focusSearch = false) {
+    const restoreFocus = opened && !value && panel.contains(root.shadowRoot.activeElement);
     closeRowMenu();
     if (!value) queueRequest += 1;
     opened = Boolean(value);
@@ -1008,6 +1108,8 @@
       trackChange();
     }
     ensureButtonPlacement();
+    if (opened && focusSearch) search.focus();
+    if (restoreFocus && !button.hidden) button.focus();
   }
 
   function openTrack(event, href) {
@@ -1123,7 +1225,8 @@
   }
 
   function renderList() {
-    root.shadowRoot.querySelector('.settings select').value = String(limit);
+    root.shadowRoot.querySelector('.history-limit').value = String(limit);
+    positionSelect.value = position;
     closeRowMenu();
     list.replaceChildren();
 
@@ -1294,10 +1397,18 @@
   setInterval(tick, 1700);
 
   window.addEventListener('storage', event => {
-    if (event.key !== null && event.key !== KEY && event.key !== SETTINGS_KEY) return;
+    if (event.key !== null && event.key !== KEY && event.key !== SETTINGS_KEY && event.key !== POSITION_KEY) return;
+    const nextPosition = loadPosition();
+    if (nextPosition !== position) {
+      position = nextPosition;
+      panelPosition = null;
+      panel.style.left = 'auto';
+      positionSelect.value = position;
+    }
     limit = loadLimit();
     history = loadHistory();
     updateButton();
+    ensureButtonPlacement();
     if (opened) renderList();
   });
 
@@ -1313,6 +1424,7 @@
       let status = '';
       switch (request.action) {
         case 'snapshot': break;
+        case 'position': setPosition(request.position); break;
         case 'find':
           navigateTo(new URL(`https://open.spotify.com/search/${encodeURIComponent(`${entry.name} ${entry.artist}`.trim())}`));
           setOpen(false);
@@ -1352,7 +1464,7 @@
       updateButton();
       if (opened) renderList();
       window.dispatchEvent(new CustomEvent('swh-extension-response', {
-        detail: JSON.stringify({ id: request.id, snapshot: { history, limit }, status })
+        detail: JSON.stringify({ id: request.id, snapshot: { history, limit, position }, status })
       }));
     } catch (error) {
       window.dispatchEvent(new CustomEvent('swh-extension-response', {
